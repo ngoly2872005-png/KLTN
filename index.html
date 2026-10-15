@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IC Cut — Immediate Constituent Analysis Lab</title>
+  <meta name="description" content="AI-assisted web application for practising Immediate Constituent (IC) analysis of English words. Dong Nai University.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="navbar">
+    <div class="nav-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true">IC</span>
+        <span class="brand-text">
+          <strong>IC Cut</strong>
+          <small data-i18n="brandSub">Morphology Lab · Dong Nai University</small>
+        </span>
+      </a>
+      <nav class="nav-links" aria-label="Sections">
+        <a href="#breakdown" data-i18n="navBreakdown">Breakdown</a>
+        <a href="#tree" data-i18n="navTree">IC Tree</a>
+        <a href="#matrix" data-i18n="navMatrix">Matrix</a>
+        <a href="#insights" data-i18n="navInsights">Insights</a>
+      </nav>
+      <div class="lang-toggle" role="group" aria-label="Language">
+        <button type="button" data-lang="en" class="active">EN</button>
+        <button type="button" data-lang="vi">VI</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container">
+        <p class="kicker" data-i18n="heroKicker">Immediate Constituent Analysis</p>
+        <h1 data-i18n="heroTitle">Cut words into their meaningful parts</h1>
+        <p class="hero-sub" data-i18n="heroSub">Enter an English word to see its morphemes, its hierarchical IC tree, a linguistic classification matrix and pedagogical insights.</p>
+
+        <form id="search-form" class="search" autocomplete="off">
+          <input id="word-input" type="text" list="word-list" spellcheck="false" aria-label="English word" data-i18n-placeholder="placeholder" placeholder="Type an English word, e.g. unhappiness">
+          <datalist id="word-list"></datalist>
+          <button type="submit" data-i18n="analyze">Analyze</button>
+        </form>
+
+        <div class="chips-wrap">
+          <span class="chips-label" data-i18n="tryWords">Strategic test words</span>
+          <div id="word-chips" class="chips"></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="container results">
+      <div id="provisional" class="notice" hidden></div>
+
+      <section class="summary card" aria-live="polite">
+        <div class="summary-main">
+          <h2 id="sum-word" class="sum-word">—</h2>
+          <span id="sum-ipa" class="ipa"></span>
+        </div>
+        <p id="sum-gloss" class="sum-gloss"></p>
+        <dl class="sum-meta">
+          <div><dt data-i18n="pos">Part of speech</dt><dd id="sum-pos"></dd></div>
+          <div><dt data-i18n="process">Word-formation process</dt><dd id="sum-process"></dd></div>
+          <div><dt data-i18n="bracket">IC bracketing</dt><dd id="sum-bracket" class="mono"></dd></div>
+        </dl>
+      </section>
+
+      <section id="breakdown" class="card">
+        <div class="card-head">
+          <div>
+            <span class="step">01</span>
+            <h3 data-i18n="sec1">Morpheme Breakdown</h3>
+            <p class="card-sub" data-i18n="sec1Sub">Each Lego block is one morpheme — the smallest unit of meaning in a word.</p>
+          </div>
+          <div class="count-badge" id="count-badge">
+            <span class="count-num" id="count-num">0</span>
+            <span class="count-label" id="count-label">morphemes</span>
+          </div>
+        </div>
+        <div id="lego-row" class="lego-row"></div>
+        <p id="count-detail" class="count-detail"></p>
+        <ul class="legend">
+          <li><span class="swatch prefix"></span><span data-i18n="legendPrefix">Prefix</span></li>
+          <li><span class="swatch root"></span><span data-i18n="legendRoot">Root / Stem</span></li>
+          <li><span class="swatch suffix"></span><span data-i18n="legendSuffix">Suffix</span></li>
+        </ul>
+      </section>
+
+      <section id="tree" class="card">
+        <div class="card-head">
+          <div>
+            <span class="step">02</span>
+            <h3 data-i18n="sec2">Hierarchical IC Tree</h3>
+            <p class="card-sub" data-i18n="sec2Sub">Top-down binary cuts, read left to right: a prefix branches LEFT of its stem, a suffix branches RIGHT of its stem.</p>
+          </div>
+          <button type="button" id="replay-tree" class="ghost-btn" data-i18n="replay">Replay</button>
+        </div>
+        <div id="tree-box" class="tree-box"></div>
+      </section>
+
+      <section id="matrix" class="card">
+        <div class="card-head">
+          <div>
+            <span class="step">03</span>
+            <h3 data-i18n="sec3">Linguistic Matrix</h3>
+            <p class="card-sub" data-i18n="sec3Sub">Classification, pedagogical meaning and etymology of every constituent. Use the EN / VI switch to translate the explanations.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="matrix">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th data-i18n="thMorph">Morpheme</th>
+                <th data-i18n="thCls">Classification</th>
+                <th data-i18n="thMeaning">Pedagogical Meaning</th>
+                <th data-i18n="thEtym">Etymology</th>
+              </tr>
+            </thead>
+            <tbody id="matrix-body"></tbody>
+          </table>
+        </div>
+        <p class="footnote" data-i18n="noInflPrefix">Note: English has no inflectional prefixes — all eight inflectional morphemes are suffixes.</p>
+      </section>
+
+      <section id="insights" class="insights">
+        <div class="card-head plain">
+          <div>
+            <span class="step">04</span>
+            <h3 data-i18n="sec4">Pedagogical Insights</h3>
+          </div>
+        </div>
+        <div class="insight-grid">
+          <article class="card insight">
+            <h4 data-i18n="allo">Allomorphy &amp; Base-form Restoration</h4>
+            <p id="ins-allo"></p>
+            <h5 data-i18n="restoreTitle">Base-form restoration</h5>
+            <div id="ins-restore" class="restore-list"></div>
+          </article>
+          <article class="card insight">
+            <h4 data-i18n="derivInfl">Derivation vs. Inflection</h4>
+            <p id="ins-deriv"></p>
+            <div class="di-compare">
+              <div class="di-col der">
+                <strong data-i18n="derTitle">Derivation</strong>
+                <span data-i18n="derText">creates a new word · may change word class · inner position</span>
+              </div>
+              <div class="di-col inf">
+                <strong data-i18n="infTitle">Inflection</strong>
+                <span data-i18n="infText">grammatical form of the same word · never changes class · outermost</span>
+              </div>
+            </div>
+          </article>
+          <article class="card insight constellation-card">
+            <h4 data-i18n="constellation">Word Constellation</h4>
+            <p class="card-sub" id="const-sub"></p>
+            <div id="constellation" class="constellation"></div>
+            <p class="hint" data-i18n="clickHint">Gold stars are in the database — click to analyse them.</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <p class="footer-title">Developing an AI-Assisted Web Application to Improve Immediate Constituent Analysis Skills Among English Majors at Dong Nai University</p>
+        <p class="footer-small" data-i18n="footerNote">Undergraduate thesis project · Faculty of Foreign Languages · Dong Nai University</p>
+      </div>
+      <div class="participant">
+        <label for="participant" data-i18n="participant">Participant code</label>
+        <input id="participant" type="text" maxlength="20" placeholder="e.g. S01">
+        <small data-i18n="participantHint">Optional — links your sessions in the research log.</small>
+        <span id="backend-status" class="status"></span>
+      </div>
+    </div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="analyzer.js"></script>
+  <script src="tree.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
