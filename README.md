@@ -6,7 +6,7 @@ IC Cut helps English-majored students practise Immediate Constituent (IC) analys
 
 ## Features
 
-- **Lego bricks** — each morpheme is a brick: prefix green, root red, suffix blue, plus a morpheme count.
+- **Morpheme badges** — glassy pastel pills that cascade in and glow on hover: prefix green, root red, suffix blue, plus a morpheme count.
 - **IC tree** — top-down binary cuts; prefixes branch left, suffixes branch right.
 - **Tabs** — classification (with etymology on click), allomorphy & base-form restoration, derivation vs. inflection, word family.
 - **EN / VI** switch for every explanation.
@@ -19,7 +19,7 @@ Verified words: `unhappiness, reconstruction, misunderstanding, running, arguing
 |------|---------|
 | `index.html`, `style.css` | Page and theme |
 | `app.js` | App logic, EN/VI text, connection to Apps Script |
-| `bricks.js`, `tree.js` | Lego brick and IC tree drawings (SVG) |
+| `bricks.js`, `tree.js` | Morpheme badges and IC tree (SVG) |
 | `data.js` | The 11 verified words |
 | `Code.gs` | Google Apps Script back-end: Claude AI analysis, Sheet cache, research log |
 
@@ -34,9 +34,21 @@ Verified words: `unhappiness, reconstruction, misunderstanding, running, arguing
 
 Each new word is analysed once by Claude (`claude-opus-5-5`) and saved in the **Words** sheet; later requests read from the sheet. `DAILY_AI_LIMIT` (default 300) caps daily AI calls.
 
-## Publish
+## Publish online (GitHub Pages)
 
-Settings → Pages → Branch `main` / `(root)`. On a free GitHub plan the repository must be **public** for Pages.
+On a free GitHub plan, Pages only works for **public** repositories.
+
+**1. Make the repository public**
+1. Open the repo → **Settings** (top tab).
+2. Scroll to the bottom → **Danger Zone** → **Change repository visibility** → **Change visibility**.
+3. Choose **Change to public**, read the warnings, and confirm (GitHub asks you to type `ngoly2872005-png/KLTN`, and may ask for your password or 2FA code).
+
+The repo contains no secrets: the Claude API key lives only in Apps Script → Script Properties.
+
+**2. Turn on Pages**
+1. **Settings → Pages**.
+2. **Source:** *Deploy from a branch* · **Branch:** `main` · folder `/ (root)` → **Save**.
+3. Wait 1–2 minutes, refresh, and open `https://ngoly2872005-png.github.io/KLTN/`.
 
 ---
 
@@ -45,3 +57,4 @@ Settings → Pages → Branch `main` / `(root)`. On a free GitHub plan the repos
 1. Dán `Code.gs` vào Apps Script, thêm `ANTHROPIC_API_KEY` trong Script Properties.
 2. Chạy `setup()` rồi `testAI()`; triển khai Web app; dán URL vào `CONFIG.GAS_URL` trong `app.js`.
 3. Mỗi từ mới chỉ gọi AI một lần, kết quả được lưu trong sheet **Words** để giáo viên kiểm tra.
+4. Đưa web lên mạng: **Settings → Danger Zone → Change visibility → Change to public**, rồi **Settings → Pages → Branch `main` / `(root)` → Save**.
