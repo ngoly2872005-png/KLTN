@@ -7,7 +7,7 @@
   // Paste your Apps Script Web App URL here after deploying Code.gs
   // (Deploy → New deployment → Web app).
   const CONFIG = {
-    GAS_URL: ""
+    GAS_URL: "https://script.google.com/macros/s/AKfycbya7p6Ap71-onjPMj0VUxbEQ188jBw1urZCG_OgZF1QLU-ae-eWMg7dBXydHhn8K5TH/exec"
   };
 
   const DB = window.IC_DB;
@@ -36,6 +36,7 @@
       aiOff: "AI is not connected yet, so only the 11 test words can be analysed. (Set CONFIG.GAS_URL in app.js.)",
       badWord: "Please type one English word (letters only).",
       aiError: "AI could not analyse this word: ",
+      serverBusy: "The server did not respond. Please press Analyze again.",
       nonce: "Not a dictionary word — analysed as a nonce word.",
       footer: "Undergraduate thesis · English Language · Dong Nai University",
       participant: "Student ID",
@@ -64,6 +65,7 @@
       aiOff: "AI chưa được kết nối nên hiện chỉ phân tích được 11 từ kiểm thử. (Điền CONFIG.GAS_URL trong app.js.)",
       badWord: "Vui lòng nhập một từ tiếng Anh (chỉ gồm chữ cái).",
       aiError: "AI chưa phân tích được từ này: ",
+      serverBusy: "Máy chủ chưa phản hồi. Vui lòng bấm Phân tích lại.",
       nonce: "Không phải từ có trong từ điển — được phân tích như từ giả.",
       footer: "Khóa luận tốt nghiệp · Ngôn ngữ Anh · Trường Đại học Đồng Nai",
       participant: "Mã SV",
@@ -103,13 +105,26 @@
   function storageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
 
   // ---------- Data ----------
+  // Apps Script occasionally answers with an HTML error page instead of
+  // JSON (cold start, brief Google outage), so retry once before giving up.
+  async function fetchJson(url) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        const res = await fetch(url);
+        return JSON.parse(await res.text());
+      } catch (e) {
+        if (attempt === 2) throw new Error(t("serverBusy"));
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    }
+  }
+
   async function lookup(raw) {
     const key = raw.toLowerCase().trim();
     if (DB[key]) return { data: DB[key], source: "verified" };
     if (!/^[a-z][a-z'-]{0,29}$/.test(key)) throw new Error(t("badWord"));
     if (!CONFIG.GAS_URL) throw Object.assign(new Error(t("aiOff")), { soft: true });
-    const res = await fetch(`${CONFIG.GAS_URL}?action=analyze&word=${encodeURIComponent(key)}`);
-    const json = await res.json();
+    const json = await fetchJson(`${CONFIG.GAS_URL}?action=analyze&word=${encodeURIComponent(key)}`);
     if (!json.ok) throw new Error(t("aiError") + json.error);
     return { data: json.data, source: json.source === "ai" ? "ai" : "sheet" };
   }
