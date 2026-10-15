@@ -1,53 +1,46 @@
-# IC Cut — Immediate Constituent Analysis Lab
+# IC Cut — AI Morphology Lab
 
 **Thesis:** *Developing an AI-Assisted Web Application to Improve Immediate Constituent Analysis Skills Among English Majors at Dong Nai University*
 
-IC Cut is a web app that helps English-majored students practise Immediate Constituent (IC) analysis of English words.
+IC Cut helps English-majored students practise Immediate Constituent (IC) analysis. Claude AI cuts any English word into morphemes; 11 strategic test words are verified by hand.
 
 ## Features
 
-| # | Module | Description |
-|---|--------|-------------|
-| 1 | **Morpheme Breakdown** | Animated Lego blocks: prefix = green, root/stem = red, suffix = blue, plus a morpheme count. |
-| 2 | **Hierarchical IC Tree** | Top-down SVG tree with binary cuts. Prefixes branch LEFT of the stem; suffixes branch RIGHT. |
-| 3 | **Linguistic Matrix** | Classification (Prefix/Suffix × Derivational/Inflectional, Free/Bound Root), pedagogical meaning and etymology. EN / VI toggle in the navbar. |
-| 4 | **Pedagogical Insights** | Allomorphy and base-form restoration (runn- → run, argu- → argue, citi- → city), derivation vs. inflection, and a Word Constellation (word family). |
+- **Lego bricks** — each morpheme is a brick: prefix green, root red, suffix blue, plus a morpheme count.
+- **IC tree** — top-down binary cuts; prefixes branch left, suffixes branch right.
+- **Tabs** — classification (with etymology on click), allomorphy & base-form restoration, derivation vs. inflection, word family.
+- **EN / VI** switch for every explanation.
 
-Local mock database (11 strategic test words): `unhappiness, reconstruction, misunderstanding, running, arguing, cities, sunflower, children, uncle, sing, unflobbable`.
-
-Words that are not in the database are looked up in the Google Sheet (if connected). If they are not there either, a rule-based analyzer cuts them and the result is marked **provisional**.
+Verified words: `unhappiness, reconstruction, misunderstanding, running, arguing, cities, sunflower, children, uncle, sing, unflobbable`.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `index.html` | Page structure |
-| `style.css` | Oxford Navy & Clean White theme |
-| `data.js` | Local mock database (strict JSON between the `JSON-START` / `JSON-END` markers) |
-| `analyzer.js` | Heuristic fallback analyzer |
-| `tree.js` | SVG IC tree renderer |
-| `app.js` | App logic, i18n (EN/VI), Apps Script connection |
-| `Code.gs` | Google Apps Script back-end (copy it into your Apps Script project) |
+| `index.html`, `style.css` | Page and theme |
+| `app.js` | App logic, EN/VI text, connection to Apps Script |
+| `bricks.js`, `tree.js` | Lego brick and IC tree drawings (SVG) |
+| `data.js` | The 11 verified words |
+| `Code.gs` | Google Apps Script back-end: Claude AI analysis, Sheet cache, research log |
 
-## Publish with GitHub Pages
+## Turn on the AI
 
-Settings → Pages → Source: **Deploy from a branch** → Branch `main` / `(root)` → Save.
-The app will be available at `https://ngoly2872005-png.github.io/KLTN/`.
+1. Open your Apps Script project and replace `Code.gs` with the file from this repo.
+2. **Project Settings → Script Properties → Add**: `ANTHROPIC_API_KEY` = your Claude API key (from console.anthropic.com). Never put the key in GitHub.
+3. Run `setup()` once, then `testAI()` to check the connection (see **Executions** log).
+4. **Deploy → New deployment → Web app** · Execute as *Me* · Access *Anyone*.
+5. Paste the Web app URL into `CONFIG.GAS_URL` at the top of `app.js`.
 
-## Connect the Google Sheet back-end (optional)
+Each new word is analysed once by Claude (`claude-opus-5-5`) and saved in the **Words** sheet; later requests read from the sheet. `DAILY_AI_LIMIT` (default 300) caps daily AI calls.
 
-1. Open the Apps Script project and replace the contents of `Code.gs` with the file in this repo.
-2. If the script is not bound to a Google Sheet, put the spreadsheet ID in `SHEET_ID`.
-3. Run `setup()` once (this creates the **Words** and **Logs** sheets). Optionally run `seedWordsFromGitHub()` to copy the 11 words into **Words**.
-4. **Deploy → New deployment → Web app** (Execute as: *Me*, Who has access: *Anyone*).
-5. Paste the Web app URL into `CONFIG.GAS_URL` at the top of `app.js` and commit.
+## Publish
 
-Once connected, each analysis is logged (timestamp, participant code, word, language) for the research questions. To add a new word, duplicate a row in **Words** and edit its JSON.
+Settings → Pages → Branch `main` / `(root)`. On a free GitHub plan the repository must be **public** for Pages.
 
 ---
 
-### Hướng dẫn nhanh (Tiếng Việt)
+### Tóm tắt (Tiếng Việt)
 
-- Bật GitHub Pages: Settings → Pages → Branch `main` / `(root)`.
-- Kết nối Google Sheet: dán `Code.gs` vào Apps Script, chạy `setup()`, triển khai Web app, rồi dán URL vào `CONFIG.GAS_URL` trong `app.js`.
-- Nút **EN / VI** trên thanh điều hướng dịch toàn bộ phần giải thích sang tiếng Việt.
+1. Dán `Code.gs` vào Apps Script, thêm `ANTHROPIC_API_KEY` trong Script Properties.
+2. Chạy `setup()` rồi `testAI()`; triển khai Web app; dán URL vào `CONFIG.GAS_URL` trong `app.js`.
+3. Mỗi từ mới chỉ gọi AI một lần, kết quả được lưu trong sheet **Words** để giáo viên kiểm tra.

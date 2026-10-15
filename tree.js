@@ -97,19 +97,13 @@
 
     let order = 0;
     (function draw(n) {
-      n.kids.forEach((k, i) => {
-        const side = n.kids.length === 2 ? (i === 0 ? "L" : "R") : "";
+      n.kids.forEach(k => {
         const path = el("path", {
           d: `M${n.x},${n.y + NODE_H} C${n.x},${n.y + NODE_H + 30} ${k.x},${k.y - 30} ${k.x},${k.y}`,
           class: `edge edge-${k.kind}`,
           style: `animation-delay:${0.15 + k.depth * 0.25}s`
         });
         edges.appendChild(path);
-        if (side) {
-          const mx = (n.x + k.x) / 2 + (side === "L" ? -14 : 14);
-          const my = (n.y + NODE_H + k.y) / 2;
-          edges.appendChild(el("text", { x: mx, y: my, class: "side-tag", "text-anchor": "middle" }, side));
-        }
         draw(k);
       });
 
