@@ -27,7 +27,7 @@
       treeTitle: "IC tree", levelWord: "Word", levelCut: "Cut",
       monomorphemic: "One morpheme — no IC cut is possible.",
       tabMatrix: "Classification", tabAllo: "Allomorphy", tabDeriv: "Derivation · Inflection", tabFamily: "Word family",
-      meaning: "Meaning", etym: "Etymology",
+      meaning: "Meaning", etym: "Etymology", allomorphOf: "allomorph of", zero: "no separate affix",
       noRestore: "No spelling change — every morpheme keeps its dictionary form.",
       derTitle: "Derivation", derText: "New word · may change word class",
       infTitle: "Inflection", infText: "Grammatical form · same word class",
@@ -55,7 +55,7 @@
       treeTitle: "Sơ đồ cây IC", levelWord: "Từ", levelCut: "Lát cắt",
       monomorphemic: "Chỉ có một hình vị — không thể cắt.",
       tabMatrix: "Phân loại", tabAllo: "Biến thể", tabDeriv: "Phái sinh · Biến tố", tabFamily: "Gia đình từ",
-      meaning: "Ý nghĩa", etym: "Từ nguyên",
+      meaning: "Ý nghĩa", etym: "Từ nguyên", allomorphOf: "biến thể của", zero: "không có phụ tố riêng",
       noRestore: "Không có biến đổi chính tả — các hình vị giữ nguyên dạng từ điển.",
       derTitle: "Phái sinh", derText: "Tạo từ mới · có thể đổi từ loại",
       infTitle: "Biến tố", infText: "Dạng ngữ pháp · không đổi từ loại",
@@ -155,7 +155,7 @@
 
   function renderBricks(w) {
     window.ICBricks.render($("#bricks"), w.morphemes,
-      { prefix: t("prefix"), root: t("root"), suffix: t("suffix"), spelled: t("spelled") }, esc);
+      { prefix: t("prefix"), root: t("root"), suffix: t("suffix"), spelled: t("spelled"), zero: t("zero") }, esc);
   }
 
   function originTags(etymEn) {
@@ -169,7 +169,10 @@
       <div class="m-row">
         <button type="button" class="m-head" aria-expanded="false">
           <span class="m-form ${m.type}">${esc(m.form)}</span>
-          <span class="m-cls ${m.type}">${esc(t("cls_" + m.cls))}</span>
+          <span class="m-cls-wrap">
+            <span class="m-cls ${m.type}">${esc(t("cls_" + m.cls))}</span>
+            ${m.allomorphOf ? `<span class="m-allo">${t("allomorphOf")} <b>${esc(m.allomorphOf)}</b></span>` : ""}
+          </span>
           <span class="m-short">${esc(firstSentence(L(m.meaning)))}</span>
           ${chev}
         </button>

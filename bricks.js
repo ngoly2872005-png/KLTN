@@ -58,8 +58,10 @@
   function render(container, morphemes, labels, esc) {
     container.innerHTML = morphemes.map((m, i) => {
       const plain = m.form.replace(/-/g, "");
-      const spelled = m.surface && m.surface !== plain
-        ? `<div class="brick-spelled">${esc(labels.spelled)} <b>${esc(m.surface)}</b></div>` : "";
+      const spelled = m.surface === ""
+        ? `<div class="brick-spelled">Ø · ${esc(labels.zero)}</div>`
+        : m.surface && m.surface !== plain
+          ? `<div class="brick-spelled">${esc(labels.spelled)} <b>${esc(m.surface)}</b></div>` : "";
       return `<div class="brick" title="${esc(m.form)}">
         <div class="brick-inner" style="--delay:${i * 0.12}s">${brickSVG(esc(m.form), labels[m.type] || "", m.type)}</div>
         ${spelled}

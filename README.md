@@ -28,6 +28,7 @@ Verified words: `unhappiness, reconstruction, misunderstanding, running, arguing
 1. Open your Apps Script project and replace `Code.gs` with the file from this repo.
 2. **Project Settings → Script Properties → Add**: `ANTHROPIC_API_KEY` = your Claude API key (from console.anthropic.com). Never put the key in GitHub.
 3. Run `setup()` once, then `testAI()` to check the connection (see **Executions** log).
+   Run `runEvalSuite()` to grade the AI on 15 linguistic test cases (hierarchy, pseudo-affixes, spelling changes, compounds, allomorphy, irregular plurals); results go to the **Eval** sheet.
 4. **Deploy → New deployment → Web app** · Execute as *Me* · Access *Anyone*.
 5. Paste the Web app URL into `CONFIG.GAS_URL` at the top of `app.js`.
 
