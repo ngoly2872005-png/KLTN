@@ -38,6 +38,7 @@
       aiError: "AI could not analyse this word: ",
       serverBusy: "The server did not respond. Please press Analyze again.",
       nonce: "Not a dictionary word — analysed as a nonce word.",
+      misspelled: "“{w}” is not an English word — the analysis below treats it as a made-up word. Did you mean:",
       footer: "Undergraduate thesis · English Language · Dong Nai University",
       participant: "Student ID",
       "cls_prefix-der": "Prefix (Derivational)", "cls_prefix-inf": "Prefix (Inflectional)",
@@ -67,6 +68,7 @@
       aiError: "AI chưa phân tích được từ này: ",
       serverBusy: "Máy chủ chưa phản hồi. Vui lòng bấm Phân tích lại.",
       nonce: "Không phải từ có trong từ điển — được phân tích như từ giả.",
+      misspelled: "“{w}” không phải từ tiếng Anh — phần phân tích bên dưới coi nó là từ giả. Có phải bạn muốn gõ:",
       footer: "Khóa luận tốt nghiệp · Ngôn ngữ Anh · Trường Đại học Đồng Nai",
       participant: "Mã SV",
       "cls_prefix-der": "Tiền tố (Phái sinh)", "cls_prefix-inf": "Tiền tố (Biến tố)",
@@ -247,8 +249,14 @@
     renderFamily(w);
     document.querySelectorAll(".chip").forEach(c => c.classList.toggle("active", c.dataset.word === w.word));
     const notice = $("#notice");
-    if (w.isRealWord === false) { notice.hidden = false; notice.className = "notice"; notice.textContent = t("nonce"); }
-    else notice.hidden = true;
+    if (w.isRealWord === false && w.suggestion) {
+      notice.hidden = false;
+      notice.className = "notice";
+      notice.innerHTML = `${esc(t("misspelled").replace("{w}", w.word))}
+        <button type="button" class="suggest-btn" data-word="${esc(w.suggestion)}">${esc(w.suggestion)} →</button>`;
+    } else if (w.isRealWord === false) {
+      notice.hidden = false; notice.className = "notice"; notice.textContent = t("nonce");
+    } else notice.hidden = true;
   }
 
   function showNotice(msg, isError) {
@@ -285,6 +293,7 @@
     $("#chips").innerHTML = TEST_WORDS.map(w => `<button type="button" class="chip" data-word="${w}">${w}</button>`).join("");
     $("#search").addEventListener("submit", e => { e.preventDefault(); show($("#word-input").value); });
     $("#chips").addEventListener("click", e => { const b = e.target.closest(".chip"); if (b) show(b.dataset.word); });
+    $("#notice").addEventListener("click", e => { const b = e.target.closest(".suggest-btn"); if (b) show(b.dataset.word); });
 
     document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => {
       state.lang = b.dataset.lang;

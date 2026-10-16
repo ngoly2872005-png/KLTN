@@ -90,6 +90,12 @@ body {
   box-shadow: var(--shadow);
 }
 .notice.error { background: #fdeceb; color: #8f201b; }
+.suggest-btn {
+  margin-left: 6px; border: 0; cursor: pointer; vertical-align: baseline;
+  background: var(--navy); color: var(--white); font: 600 14px var(--mono);
+  padding: 4px 12px; border-radius: 999px;
+}
+.suggest-btn:hover { background: var(--navy-soft); }
 
 /* ---------- Word header ---------- */
 .head { display: flex; justify-content: space-between; align-items: center; gap: 20px; }

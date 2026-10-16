@@ -27,7 +27,7 @@
 
 const SHEET_ID = '';                // leave empty if bound to the Sheet
 const AI_MODEL = 'claude-opus-5-5';
-const PROMPT_VERSION = 2;
+const PROMPT_VERSION = 3;
 const MAX_ATTEMPTS = 2;             // 1 retry when the answer fails validation
 const DAILY_AI_LIMIT = 300;         // protects your API budget
 const DATA_JS_URL = 'https://raw.githubusercontent.com/ngoly2872005-png/KLTN/main/data.js';
@@ -194,7 +194,7 @@ const SYSTEM_PROMPT = [
   '- Vietnamese ("vi") must be natural academic Vietnamese as used in Vietnamese university linguistics courses (tiền tố, hậu tố, gốc tự do, gốc ràng buộc, phái sinh, biến tố, biến thể hình vị, khôi phục dạng gốc, từ ghép).',
   '- restoration: surface ends with a hyphen; empty list if nothing changed.',
   '- family: the historical root, its short gloss, and 6 to 10 real related English words.',
-  '- If the input is not a real English word, analyse it as a nonce word with productive rules, set isRealWord to false and say so in the gloss.'
+  '- If the input is not a real English word, set isRealWord to false. If it looks like a misspelling of a real word (coinside → coincide, recieve → receive), put the correctly spelled word in "suggestion". Otherwise leave "suggestion" empty and analyse the input as a nonce word with productive rules, saying so in the gloss. For real words "suggestion" is always "".'
 ].join('\n');
 
 function bi_() {
@@ -205,10 +205,11 @@ function aiSchema_() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['word', 'isRealWord', 'pos', 'ipa', 'gloss', 'process', 'morphemes', 'nodes', 'insights', 'family'],
+    required: ['word', 'isRealWord', 'suggestion', 'pos', 'ipa', 'gloss', 'process', 'morphemes', 'nodes', 'insights', 'family'],
     properties: {
       word: { type: 'string' },
       isRealWord: { type: 'boolean' },
+      suggestion: { type: 'string' },
       pos: bi_(),
       ipa: { type: 'string' },
       gloss: bi_(),
@@ -415,6 +416,7 @@ function toAppFormat_(ai, word) {
   return {
     word: word,
     isRealWord: ai.isRealWord,
+    suggestion: ai.isRealWord ? '' : String(ai.suggestion || '').toLowerCase().trim(),
     pos: ai.pos,
     ipa: ai.ipa,
     gloss: ai.gloss,
