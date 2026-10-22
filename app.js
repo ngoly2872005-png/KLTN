@@ -384,7 +384,7 @@
   function errorMessage(err) {
     if (err.code === "apiError") return t("err_apiError") + err.message;
     if (!I18N.en["err_" + err.code]) return err.message;
-    const detail = err.message && !/^HTTP \d+$/.test(err.message) && !["network", "refused", "invalid"].includes(err.code)
+    const detail = err.message && !/^HTTP \d+$/.test(err.message) && !["network", "refused"].includes(err.code)
       ? ` (${err.message.slice(0, 220)})` : "";
     return t("err_" + err.code) + detail;
   }

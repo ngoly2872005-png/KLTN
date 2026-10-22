@@ -408,6 +408,102 @@
     return JSON.parse(text);
   }
 
+  // ---------- Repair of harmless formatting slips ----------
+  /**
+   * If the surfaces do not spell the word because a base form was written
+   * instead of its spelling inside the word (sincere for sincer-), try the
+   * standard English spelling changes and keep them only if the whole word
+   * is then spelled exactly. Only "surface" changes; "form" keeps the base.
+   */
+  function alignSurfaces(ms, target) {
+    if (ms.map(m => m.surface).join("") === target) return;
+    const options = s => {
+      if (s === "") return [""];
+      const list = [s];
+      if (/e$/.test(s)) list.push(s.slice(0, -1));                 // silent e dropped
+      if (/y$/.test(s)) list.push(s.slice(0, -1) + "i");           // y → i
+      if (/[bcdfgklmnprstvz]$/.test(s)) list.push(s + s.slice(-1)); // consonant doubled
+      if (/^-/.test(s)) list.push(s.slice(1));
+      return list;
+    };
+    const chosen = [];
+    const fit = (i, pos) => {
+      if (i === ms.length) return pos === target.length;
+      for (const c of options(ms[i].surface)) {
+        if (target.startsWith(c, pos) && fit(i + 1, pos + c.length)) { chosen[i] = c; return true; }
+      }
+      return false;
+    };
+    if (fit(0, 0)) ms.forEach((m, i) => { m.surface = chosen[i]; });
+  }
+
+  /**
+   * Fixes slips that do not change the analysis: letter case, hyphens in
+   * surfaces, type/cls disagreement, inner-node labels, nodes listed out of
+   * pre-order, children out of left-to-right order and one-child chains.
+   * Anything linguistic (spelling, binary cuts…) is left to the validator.
+   */
+  function normalizeAnalysis(ai, word) {
+    if (!ai || !Array.isArray(ai.morphemes) || !Array.isArray(ai.nodes) || !ai.morphemes.length) return ai;
+    try {
+      const ms = ai.morphemes;
+      ms.forEach(m => {
+        m.surface = String(m.surface == null ? "" : m.surface).toLowerCase().replace(/[-\s]/g, "");
+        m.form = String(m.form || "").trim();
+        const t = String(m.cls || "").split("-")[0];
+        if (["prefix", "root", "suffix"].includes(t)) m.type = t;
+        if (typeof m.allomorphOf !== "string") m.allomorphOf = "";
+      });
+      alignSurfaces(ms, String(word).toLowerCase().replace(/-/g, ""));
+      if (ms.length === 1) {
+        const first = ai.nodes[0] || {};
+        ai.nodes = [{ label: word, cat: String(first.cat || ms[0].cat || ""), parent: -1, morpheme: 0 }];
+        return ai;
+      }
+
+      const nodes = ai.nodes.map((n, i) => ({
+        i, label: String(n.label || ""), cat: String(n.cat || ""),
+        parent: Number.isInteger(n.parent) ? n.parent : -1,
+        morpheme: Number.isInteger(n.morpheme) ? n.morpheme : -1
+      }));
+      const isRoot = n => n.parent < 0 || n.parent >= nodes.length || n.parent === n.i;
+      const roots = nodes.filter(isRoot);
+      if (roots.length !== 1) return ai;
+      const kids = nodes.map(() => []);
+      nodes.forEach(n => { if (!isRoot(n)) kids[n.parent].push(n.i); });
+
+      const seen = new Set();
+      const build = i => {
+        if (seen.has(i)) throw new Error("cycle");
+        seen.add(i);
+        const n = nodes[i];
+        if (!kids[i].length) return { leaf: true, morpheme: n.morpheme, cat: n.cat };
+        const children = kids[i].map(build);
+        if (children.length === 1) return children[0];          // collapse a one-child chain
+        const first = c => c.leaf ? c.morpheme : c.first;
+        children.sort((a, b) => first(a) - first(b));            // left to right
+        return { leaf: false, cat: n.cat, children, first: first(children[0]) };
+      };
+      const tree = build(roots[0].i);
+
+      const out = [];
+      const spell = c => c.leaf ? (ms[c.morpheme] ? ms[c.morpheme].surface : "") : c.children.map(spell).join("");
+      const emit = (c, parent) => {
+        const idx = out.length;
+        if (c.leaf) {
+          const m = ms[c.morpheme];
+          out.push({ label: m ? (m.surface || m.form) : "", cat: c.cat, parent, morpheme: c.morpheme });
+        } else {
+          out.push({ label: parent < 0 ? word : spell(c), cat: c.cat, parent, morpheme: -1 });
+          c.children.forEach(k => emit(k, idx));
+        }
+      };
+      emit(tree, -1);
+      ai.nodes = out;
+    } catch (e) { /* leave the answer as it was; the validator will explain */ }
+    return ai;
+  }
+
   // ---------- Validation (mirrors Code.gs validateAnalysis_) ----------
   function validateAnalysis(ai, word) {
     const problems = [];
@@ -502,12 +598,13 @@
       lastModel = currentModel();
       let raw;
       try {
-        raw = await call(text, onProgress, signal);
+        raw = normalizeAnalysis(await call(text, onProgress, signal), word);
         problems = validateAnalysis(raw, word);
       } catch (e) {
         if (e.code) throw e;                                  // API / network error
         problems = ["The answer was not valid JSON that follows the schema."];   // parse or shape error
       }
+      if (problems.length) console.warn("IC Cut: AI answer rejected (attempt " + attempt + ")", problems, raw);
       if (!problems.length) {
         const model = lastModel;
         const data = toAppFormat(raw, word, model);
