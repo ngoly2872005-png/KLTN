@@ -1,16 +1,24 @@
 /*
  * IC Cut — main application.
- * Lookup order: verified local database (11 test words) → Claude AI through
- * the Google Apps Script back-end (results are cached in the Google Sheet).
+ * Lookup order (fastest first):
+ *   1. verified local database (11 test words)
+ *   2. this browser's cache of words it has analysed before
+ *   3. the shared Google Sheet cache (words anyone has analysed before)
+ *   4. Claude AI, called directly from the browser with the user's own key
+ *      (see ai.js); the result is then saved to both caches.
  */
 (function () {
-  // Paste your Apps Script Web App URL here after deploying Code.gs
-  // (Deploy → New deployment → Web app).
+  // Apps Script Web App URL (Deploy → Web app). Used for the shared word
+  // cache and the research log — never for API keys.
   const CONFIG = {
-    GAS_URL: "https://script.google.com/macros/s/AKfycbya7p6Ap71-onjPMj0VUxbEQ188jBw1urZCG_OgZF1QLU-ae-eWMg7dBXydHhn8K5TH/exec"
+    GAS_URL: "https://script.google.com/macros/s/AKfycbya7p6Ap71-onjPMj0VUxbEQ188jBw1urZCG_OgZF1QLU-ae-eWMg7dBXydHhn8K5TH/exec",
+    SHEET_TIMEOUT_MS: 4000
   };
 
   const DB = window.IC_DB;
+  const AI = window.ICAI;
+  const CACHE_KEY = "ic-cache-v" + AI.PROMPT_VERSION;
+  const CACHE_MAX = 300;
   const TEST_WORDS = ["unhappiness", "reconstruction", "misunderstanding", "running", "arguing",
     "cities", "sunflower", "children", "uncle", "sing", "unflobbable"];
 
@@ -20,7 +28,6 @@
       heroSub: "Type a word — AI cuts it into morphemes.",
       placeholder: "e.g. unbelievable",
       analyze: "Analyze",
-      loading: "AI is analysing…",
       morphemes: "morphemes",
       bricksTitle: "Morphemes",
       prefix: "Prefix", root: "Root", suffix: "Suffix", spelled: "spelled",
@@ -32,25 +39,56 @@
       derTitle: "Derivation", derText: "New word · may change word class",
       infTitle: "Inflection", infText: "Grammatical form · same word class",
       famEmpty: "No word family available.",
-      srcVerified: "✓ Verified", srcAi: "✦ AI analysis", srcSheet: "✓ Saved",
-      aiOff: "AI is not connected yet, so only the 11 test words can be analysed. (Set CONFIG.GAS_URL in app.js.)",
+      srcVerified: "✓ Verified", srcAi: "✦ AI analysis", srcSheet: "✓ Saved", srcLocal: "✓ Saved on this device",
       badWord: "Please type one English word (letters only).",
-      aiError: "AI could not analyse this word: ",
-      serverBusy: "The server did not respond. Please press Analyze again.",
       nonce: "Not a dictionary word — analysed as a nonce word.",
       misspelled: "“{w}” is not an English word — the analysis below treats it as a made-up word. Did you mean:",
       footer: "Undergraduate thesis · English Language · Dong Nai University",
       participant: "Student ID",
       "cls_prefix-der": "Prefix (Derivational)", "cls_prefix-inf": "Prefix (Inflectional)",
       "cls_root-free": "Free Root", "cls_root-bound": "Bound Root",
-      "cls_suffix-der": "Suffix (Derivational)", "cls_suffix-inf": "Suffix (Inflectional)"
+      "cls_suffix-der": "Suffix (Derivational)", "cls_suffix-inf": "Suffix (Inflectional)",
+      // loading
+      loadCache: "Looking for a saved analysis…",
+      loadThinking: "AI is thinking…",
+      loadWriting: "AI is writing the analysis…",
+      loadRetry: "Double-checking the result…",
+      // API key
+      keyBtn: "API key", keyConnected: "AI ready",
+      keyTitle: "Connect Claude AI",
+      keyIntro: "Use your own Claude API key. It is stored only in this browser and sent only to Anthropic — never to the owner of this site.",
+      keyLabel: "API key",
+      keyShared: "This is a shared computer (lab) — forget the key when the tab is closed",
+      speedLabel: "AI speed",
+      modeFast: "Fast", modeFastHint: "Haiku 5.5 · cheapest",
+      modeBalanced: "Balanced", modeBalancedHint: "Sonnet 5.5 · recommended",
+      modeAccurate: "Most accurate", modeAccurateHint: "Opus 5.5 · slower",
+      keyClear: "Remove key", keyCancel: "Close", keySave: "Save",
+      keyHelp: "No key yet?", keyHelpLink: "Create one at console.anthropic.com",
+      keyCurrent: "Saved key: {k} — leave empty to keep it.",
+      keyChecking: "Checking the key…",
+      keyOk: "The key works and is saved in this browser.",
+      keyBadFormat: "A Claude API key starts with sk-ant-.",
+      keyMissing: "Please paste your API key.",
+      keyCleared: "The key was removed from this browser.",
+      modeSaved: "Saved.",
+      needKey: "This word is new. Enter your Claude API key once to let AI analyse it.",
+      needKeyBtn: "Enter key",
+      err_badKey: "The API key is not valid. Please check it.",
+      err_noPermission: "This API key is not allowed to use this model.",
+      err_noCredit: "Your Anthropic account has no credit left. Add credit at console.anthropic.com.",
+      err_rateLimit: "Too many requests right now. Please wait a minute and try again.",
+      err_overloaded: "The AI is busy. Please try again in a moment.",
+      err_network: "Could not reach the AI. Check your internet connection.",
+      err_refused: "The AI declined to analyse this word.",
+      err_invalid: "The AI answer did not pass the checks twice. Please try again.",
+      err_apiError: "The AI returned an error: "
     },
     vi: {
       heroTitle: "Phân tích thành tố trực tiếp",
       heroSub: "Nhập một từ — AI sẽ cắt từ thành các hình vị.",
       placeholder: "ví dụ: unbelievable",
       analyze: "Phân tích",
-      loading: "AI đang phân tích…",
       morphemes: "hình vị",
       bricksTitle: "Hình vị",
       prefix: "Tiền tố", root: "Gốc từ", suffix: "Hậu tố", spelled: "viết là",
@@ -62,18 +100,48 @@
       derTitle: "Phái sinh", derText: "Tạo từ mới · có thể đổi từ loại",
       infTitle: "Biến tố", infText: "Dạng ngữ pháp · không đổi từ loại",
       famEmpty: "Chưa có gia đình từ.",
-      srcVerified: "✓ Đã kiểm duyệt", srcAi: "✦ AI phân tích", srcSheet: "✓ Đã lưu",
-      aiOff: "AI chưa được kết nối nên hiện chỉ phân tích được 11 từ kiểm thử. (Điền CONFIG.GAS_URL trong app.js.)",
+      srcVerified: "✓ Đã kiểm duyệt", srcAi: "✦ AI phân tích", srcSheet: "✓ Đã lưu", srcLocal: "✓ Đã lưu trên máy",
       badWord: "Vui lòng nhập một từ tiếng Anh (chỉ gồm chữ cái).",
-      aiError: "AI chưa phân tích được từ này: ",
-      serverBusy: "Máy chủ chưa phản hồi. Vui lòng bấm Phân tích lại.",
       nonce: "Không phải từ có trong từ điển — được phân tích như từ giả.",
       misspelled: "“{w}” không phải từ tiếng Anh — phần phân tích bên dưới coi nó là từ giả. Có phải bạn muốn gõ:",
       footer: "Khóa luận tốt nghiệp · Ngôn ngữ Anh · Trường Đại học Đồng Nai",
       participant: "Mã SV",
       "cls_prefix-der": "Tiền tố (Phái sinh)", "cls_prefix-inf": "Tiền tố (Biến tố)",
       "cls_root-free": "Gốc tự do", "cls_root-bound": "Gốc ràng buộc",
-      "cls_suffix-der": "Hậu tố (Phái sinh)", "cls_suffix-inf": "Hậu tố (Biến tố)"
+      "cls_suffix-der": "Hậu tố (Phái sinh)", "cls_suffix-inf": "Hậu tố (Biến tố)",
+      loadCache: "Đang tìm bản phân tích đã lưu…",
+      loadThinking: "AI đang suy nghĩ…",
+      loadWriting: "AI đang viết kết quả phân tích…",
+      loadRetry: "Đang kiểm tra lại kết quả…",
+      keyBtn: "API key", keyConnected: "AI sẵn sàng",
+      keyTitle: "Kết nối Claude AI",
+      keyIntro: "Dùng API key Claude của riêng bạn. Key chỉ được lưu trong trình duyệt này và chỉ gửi tới Anthropic — không gửi cho chủ trang web.",
+      keyLabel: "API key",
+      keyShared: "Đây là máy dùng chung (phòng máy) — chỉ nhớ key đến khi đóng tab",
+      speedLabel: "Tốc độ AI",
+      modeFast: "Nhanh", modeFastHint: "Haiku 5.5 · rẻ nhất",
+      modeBalanced: "Cân bằng", modeBalancedHint: "Sonnet 5.5 · khuyên dùng",
+      modeAccurate: "Chính xác nhất", modeAccurateHint: "Opus 5.5 · chậm hơn",
+      keyClear: "Xóa key", keyCancel: "Đóng", keySave: "Lưu",
+      keyHelp: "Chưa có key?", keyHelpLink: "Tạo key tại console.anthropic.com",
+      keyCurrent: "Key đang lưu: {k} — để trống nếu muốn giữ nguyên.",
+      keyChecking: "Đang kiểm tra key…",
+      keyOk: "Key hợp lệ và đã được lưu trong trình duyệt này.",
+      keyBadFormat: "API key của Claude bắt đầu bằng sk-ant-.",
+      keyMissing: "Vui lòng dán API key của bạn.",
+      keyCleared: "Đã xóa key khỏi trình duyệt này.",
+      modeSaved: "Đã lưu.",
+      needKey: "Đây là từ mới. Hãy nhập API key Claude một lần để AI phân tích.",
+      needKeyBtn: "Nhập key",
+      err_badKey: "API key không hợp lệ. Vui lòng kiểm tra lại.",
+      err_noPermission: "API key này không được phép dùng model đã chọn.",
+      err_noCredit: "Tài khoản Anthropic đã hết tiền. Hãy nạp thêm tại console.anthropic.com.",
+      err_rateLimit: "Đang có quá nhiều yêu cầu. Vui lòng đợi một phút rồi thử lại.",
+      err_overloaded: "AI đang bận. Vui lòng thử lại sau giây lát.",
+      err_network: "Không kết nối được tới AI. Hãy kiểm tra mạng.",
+      err_refused: "AI từ chối phân tích từ này.",
+      err_invalid: "Kết quả của AI chưa đạt kiểm tra sau 2 lần. Vui lòng thử lại.",
+      err_apiError: "AI báo lỗi: "
     }
   };
 
@@ -95,7 +163,7 @@
     [/nonce|invented/i, "Nonce", "Từ giả"]
   ];
 
-  const state = { lang: storageGet("ic-lang") || "vi", word: null, source: "verified" };
+  const state = { lang: storageGet("ic-lang") || "vi", word: null, source: "verified", request: 0, pendingWord: null };
 
   const $ = sel => document.querySelector(sel);
   const t = key => (I18N[state.lang] && I18N[state.lang][key]) || I18N.en[key] || key;
@@ -106,41 +174,68 @@
   function storageGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function storageSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* private mode */ } }
 
-  // ---------- Data ----------
-  // Apps Script occasionally answers with an HTML error page instead of
-  // JSON (cold start, brief Google outage), so retry once before giving up.
-  async function fetchJson(url) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      try {
-        const res = await fetch(url);
-        return JSON.parse(await res.text());
-      } catch (e) {
-        if (attempt === 2) throw new Error(t("serverBusy"));
-        await new Promise(r => setTimeout(r, 1500));
-      }
+  // ---------- Caches ----------
+  function readCache() { try { return JSON.parse(storageGet(CACHE_KEY) || "{}"); } catch (e) { return {}; } }
+  function cacheGet(word) { return readCache()[word] || null; }
+  function cachePut(word, data) {
+    const c = readCache();
+    delete c[word];
+    c[word] = data;
+    const keys = Object.keys(c);
+    keys.slice(0, Math.max(0, keys.length - CACHE_MAX)).forEach(k => delete c[k]);
+    storageSet(CACHE_KEY, JSON.stringify(c));
+  }
+
+  /** Shared Google Sheet cache; gives up quickly so a slow Sheet never blocks the AI. */
+  async function sheetLookup(word) {
+    if (!CONFIG.GAS_URL) return null;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), CONFIG.SHEET_TIMEOUT_MS);
+    try {
+      const res = await fetch(`${CONFIG.GAS_URL}?action=lookup&word=${encodeURIComponent(word)}`, { signal: ctrl.signal });
+      const json = JSON.parse(await res.text());
+      return json.ok && json.data ? json.data : null;
+    } catch (e) {
+      return null;   // timeout, HTML error page, offline → just ask the AI
+    } finally {
+      clearTimeout(timer);
     }
   }
 
-  async function lookup(raw) {
-    const key = raw.toLowerCase().trim();
-    if (DB[key]) return { data: DB[key], source: "verified" };
-    if (!/^[a-z][a-z'-]{0,29}$/.test(key)) throw new Error(t("badWord"));
-    if (!CONFIG.GAS_URL) throw Object.assign(new Error(t("aiOff")), { soft: true });
-    const json = await fetchJson(`${CONFIG.GAS_URL}?action=analyze&word=${encodeURIComponent(key)}`);
-    if (!json.ok) throw new Error(t("aiError") + json.error);
-    return { data: json.data, source: json.source === "ai" ? "ai" : "sheet" };
+  // text/plain avoids a CORS preflight, which Apps Script does not answer.
+  function postToSheet(payload) {
+    if (!CONFIG.GAS_URL) return;
+    fetch(CONFIG.GAS_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify(payload) })
+      .catch(() => {});
   }
 
   function logEvent(event, word) {
-    if (!CONFIG.GAS_URL) return;
-    const body = JSON.stringify({
+    postToSheet({
       action: "log", event, word: word || "",
       participant: $("#participant").value.trim(),
       lang: state.lang, source: state.source, userAgent: navigator.userAgent
     });
-    // text/plain avoids a CORS preflight, which Apps Script does not answer.
-    fetch(CONFIG.GAS_URL, { method: "POST", mode: "no-cors", headers: { "Content-Type": "text/plain;charset=utf-8" }, body })
-      .catch(() => {});
+  }
+
+  // ---------- Lookup ----------
+  async function lookup(raw, onStatus) {
+    const word = raw.toLowerCase().trim();
+    if (DB[word]) return { data: DB[word], source: "verified" };
+    if (!/^[a-z][a-z'-]{0,29}$/.test(word)) throw Object.assign(new Error(t("badWord")), { code: "badWord" });
+
+    const local = cacheGet(word);
+    if (local) return { data: local, source: "local" };
+
+    onStatus({ phase: "cache", pct: 0 });
+    const shared = await sheetLookup(word);
+    if (shared) { cachePut(word, shared); return { data: shared, source: "sheet" }; }
+
+    if (!AI.hasKey()) throw Object.assign(new Error(t("needKey")), { code: "needKey", word });
+
+    const { data, raw: aiJson, model } = await AI.analyze(word, onStatus);
+    cachePut(word, data);
+    postToSheet({ action: "save", word, ai: aiJson, model });
+    return { data, source: "ai" };
   }
 
   // ---------- Render ----------
@@ -149,6 +244,13 @@
     document.querySelectorAll("[data-i18n]").forEach(n => { n.textContent = t(n.dataset.i18n); });
     document.querySelectorAll("[data-i18n-placeholder]").forEach(n => { n.placeholder = t(n.dataset.i18nPlaceholder); });
     document.querySelectorAll(".lang button").forEach(b => b.classList.toggle("active", b.dataset.lang === state.lang));
+    updateKeyButton();
+  }
+
+  function updateKeyButton() {
+    const on = AI.hasKey();
+    $("#key-btn").classList.toggle("connected", on);
+    $("#key-btn-label").textContent = t(on ? "keyConnected" : "keyBtn");
   }
 
   function bracket(node, w) {
@@ -164,8 +266,8 @@
     $("#w-pos").textContent = pos;
     $("#w-process").textContent = L(w.process);
     const src = $("#w-source");
-    src.className = "tag source " + state.source;
-    src.textContent = t({ verified: "srcVerified", ai: "srcAi", sheet: "srcSheet" }[state.source]);
+    src.className = "tag source " + (state.source === "ai" ? "ai" : "verified");
+    src.textContent = t({ verified: "srcVerified", ai: "srcAi", sheet: "srcSheet", local: "srcLocal" }[state.source]);
     $("#w-count").textContent = w.morphemes.length;
     $("#w-bracket").textContent = bracket(w.tree, w);
   }
@@ -259,20 +361,67 @@
     } else notice.hidden = true;
   }
 
-  function showNotice(msg, isError) {
+  function showNotice(msg, isError, actionHtml) {
     const n = $("#notice");
     n.hidden = false;
     n.className = "notice" + (isError ? " error" : "");
-    n.textContent = msg;
+    n.innerHTML = esc(msg) + (actionHtml || "");
+  }
+
+  function errorMessage(err) {
+    if (err.code === "apiError") return t("err_apiError") + err.message;
+    return I18N.en["err_" + err.code] ? t("err_" + err.code) : err.message;
+  }
+
+  // ---------- Loading indicator ----------
+  let loadTimer = null;
+  function startLoading() {
+    const started = Date.now();
+    $("#loading").hidden = false;
+    $("#progress-bar").style.width = "0%";
+    $("#loading-text").textContent = t("loadCache");
+    $("#loading-meta").textContent = "";
+    clearInterval(loadTimer);
+    loadTimer = setInterval(() => {
+      const s = ((Date.now() - started) / 1000).toFixed(0);
+      const model = AI.hasKey() ? AI.MODES[AI.getMode()].model + " · " : "";
+      $("#loading-meta").textContent = model + s + "s";
+    }, 250);
+  }
+  function setProgress(p) {
+    const label = { cache: "loadCache", thinking: "loadThinking", writing: "loadWriting", retry: "loadRetry" }[p.phase];
+    if (label) $("#loading-text").textContent = t(label);
+    // While the model is thinking we have no output yet: creep slowly so the bar still moves.
+    const bar = $("#progress-bar");
+    const current = parseFloat(bar.style.width) || 0;
+    const target = p.phase === "thinking" ? Math.min(current + 1, 20) : p.pct;
+    bar.style.width = Math.max(current, target) + "%";
+  }
+  function stopLoading() {
+    clearInterval(loadTimer);
+    $("#loading").hidden = true;
   }
 
   async function show(raw, opts) {
     const word = (raw || "").trim();
     if (!word) { $("#word-input").focus(); return; }
-    const needsAI = !DB[word.toLowerCase()];
-    if (needsAI && CONFIG.GAS_URL) { $("#loading").hidden = false; $("#result").hidden = true; $("#notice").hidden = true; }
+    const id = ++state.request;
+    const quick = !!DB[word.toLowerCase()] || !!cacheGet(word.toLowerCase());
+    if (!quick) { startLoading(); $("#result").hidden = true; $("#notice").hidden = true; }
+    // While the model is thinking no text arrives yet, so nudge the bar forward.
+    let thinkTick = null;
     try {
-      const { data, source } = await lookup(word);
+      const { data, source } = await lookup(word, p => {
+        if (id !== state.request) return;
+        if (p.phase === "thinking" && !thinkTick) {
+          thinkTick = setInterval(() => { if (id === state.request) setProgress({ phase: "thinking" }); }, 700);
+        } else if (p.phase !== "thinking") {
+          clearInterval(thinkTick);
+          thinkTick = null;
+        }
+        setProgress(p);
+      });
+      if (id !== state.request) return;      // a newer search replaced this one
       state.word = data;
       state.source = source;
       $("#word-input").value = data.word;
@@ -281,11 +430,81 @@
       if (!opts || !opts.silentHash) history.replaceState(null, "", "#w=" + encodeURIComponent(data.word));
       logEvent("analyze", data.word);
     } catch (err) {
+      if (id !== state.request) return;
       $("#result").hidden = !state.word;
-      showNotice(err.message, !err.soft);
+      if (err.code === "needKey") {
+        state.pendingWord = err.word;
+        showNotice(t("needKey"), false, ` <button type="button" class="notice-btn" data-action="key">${esc(t("needKeyBtn"))}</button>`);
+        openKeyDialog();
+      } else {
+        const keyProblem = err.code === "badKey" || err.code === "noCredit" || err.code === "noPermission";
+        showNotice(errorMessage(err), true,
+          keyProblem ? ` <button type="button" class="notice-btn" data-action="key">${esc(t("keyBtn"))}</button>` : "");
+      }
     } finally {
-      $("#loading").hidden = true;
+      clearInterval(thinkTick);
+      if (id === state.request) stopLoading();
     }
+  }
+
+  // ---------- API key dialog ----------
+  function openKeyDialog() {
+    const dlg = $("#key-dialog");
+    $("#key-input").value = "";
+    $("#key-current").textContent = AI.hasKey() ? t("keyCurrent").replace("{k}", AI.maskedKey()) : "";
+    $("#key-status").textContent = "";
+    $("#key-status").className = "key-status";
+    const mode = AI.getMode();
+    document.querySelectorAll('#key-form input[name="mode"]').forEach(r => { r.checked = r.value === mode; });
+    if (!dlg.open) dlg.showModal();
+    $("#key-input").focus();
+  }
+
+  function keyStatus(msg, kind) {
+    const s = $("#key-status");
+    s.textContent = msg;
+    s.className = "key-status" + (kind ? " " + kind : "");
+  }
+
+  async function saveKeyDialog(e) {
+    e.preventDefault();
+    const chosen = document.querySelector('#key-form input[name="mode"]:checked');
+    if (chosen) AI.saveMode(chosen.value);
+    const key = $("#key-input").value.trim();
+
+    if (!key) {
+      if (!AI.hasKey()) { keyStatus(t("keyMissing"), "err"); return; }
+      keyStatus(t("modeSaved"), "ok");
+      closeKeyDialogSoon();
+      return;
+    }
+    if (!/^sk-ant-/.test(key)) { keyStatus(t("keyBadFormat"), "err"); return; }
+
+    const btn = $("#key-save");
+    btn.disabled = true;
+    keyStatus(t("keyChecking"));
+    try {
+      await AI.testKey(key);
+      AI.saveKey(key, $("#key-shared").checked);
+      keyStatus(t("keyOk"), "ok");
+      updateKeyButton();
+      closeKeyDialogSoon();
+    } catch (err) {
+      keyStatus(errorMessage(err), "err");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function closeKeyDialogSoon() {
+    setTimeout(() => {
+      $("#key-dialog").close();
+      if (state.pendingWord && AI.hasKey()) {
+        const w = state.pendingWord;
+        state.pendingWord = null;
+        show(w);
+      }
+    }, 700);
   }
 
   // ---------- Events ----------
@@ -293,7 +512,21 @@
     $("#chips").innerHTML = TEST_WORDS.map(w => `<button type="button" class="chip" data-word="${w}">${w}</button>`).join("");
     $("#search").addEventListener("submit", e => { e.preventDefault(); show($("#word-input").value); });
     $("#chips").addEventListener("click", e => { const b = e.target.closest(".chip"); if (b) show(b.dataset.word); });
-    $("#notice").addEventListener("click", e => { const b = e.target.closest(".suggest-btn"); if (b) show(b.dataset.word); });
+    $("#notice").addEventListener("click", e => {
+      const s = e.target.closest(".suggest-btn");
+      if (s) show(s.dataset.word);
+      if (e.target.closest('[data-action="key"]')) openKeyDialog();
+    });
+
+    $("#key-btn").addEventListener("click", openKeyDialog);
+    $("#key-form").addEventListener("submit", saveKeyDialog);
+    $("#key-cancel").addEventListener("click", () => { state.pendingWord = null; $("#key-dialog").close(); });
+    $("#key-clear").addEventListener("click", () => {
+      AI.clearKey();
+      updateKeyButton();
+      $("#key-current").textContent = "";
+      keyStatus(t("keyCleared"), "ok");
+    });
 
     document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => {
       state.lang = b.dataset.lang;

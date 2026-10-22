@@ -1,32 +1,36 @@
 /**
- * IC Cut — Google Apps Script back-end (AI analysis + research log)
+ * IC Cut — Google Apps Script back-end (shared word cache + research log)
  * --------------------------------------------------------------
  * Copy this whole file into your Apps Script project (Code.gs).
  *
+ * The AI itself now runs in each user's browser with THEIR OWN Claude API
+ * key (see ai.js). This script never receives anyone's key. It only:
+ *   - serves the shared cache of analysed words  (GET ?action=lookup)
+ *   - stores new AI analyses sent by browsers     (POST action "save", validated)
+ *   - stores the research log                     (POST action "log")
+ *
  * Sheets (created automatically by setup()):
- *   Words : word | json | updated | source   → cache of analysed words
+ *   Words : word | json | updated | source   → shared cache of analysed words
  *   Logs  : timestamp | participant | event | word | source | lang | userAgent
  *   Eval  : results of runEvalSuite()
  *
- * First-time setup:
+ * Setup:
  *   1. If the script is NOT bound to a spreadsheet, paste its ID into SHEET_ID.
- *   2. Project Settings → Script Properties → add
- *        ANTHROPIC_API_KEY = <your Claude API key>
- *      (never put the key in this file or in the GitHub repo)
- *   3. Run setup() once and authorize.
- *   4. Run testAI() to check the connection, then runEvalSuite() to grade
- *      the AI on the 15 linguistic test cases (see the Eval sheet).
- *   5. Deploy → New deployment → Web app
- *        Execute as: Me   ·   Who has access: Anyone
- *   6. Paste the Web app URL into CONFIG.GAS_URL in app.js.
+ *   2. Run setup() once and authorize.
+ *   3. Deploy → Manage deployments → Edit → Version: New version → Deploy
+ *      (the Web app URL stays the same).
  *
- * Every word the AI analyses is saved in the Words sheet, so each word is
- * only paid for once. Bump PROMPT_VERSION whenever SYSTEM_PROMPT changes:
+ * Optional, for the owner only: add ANTHROPIC_API_KEY in Script Properties
+ * to run testAI() / runEvalSuite() from the editor. The Web app never uses it.
+ *
+ * Bump PROMPT_VERSION (here AND in ai.js) whenever SYSTEM_PROMPT changes:
  * cached AI answers from an older prompt are then analysed again.
  */
 
 const SHEET_ID = '';                // leave empty if bound to the Sheet
-const AI_MODEL = 'claude-opus-5-5';
+const AI_MODEL = 'claude-opus-5-5'; // used only by testAI() / runEvalSuite()
+const ALLOWED_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'];
+const MAX_SAVE_BYTES = 60000;
 const PROMPT_VERSION = 3;
 const MAX_ATTEMPTS = 2;             // 1 retry when the answer fails validation
 const DAILY_AI_LIMIT = 300;         // protects your API budget
@@ -102,46 +106,70 @@ function saveWord_(key, data, source) {
 /* Web app endpoints                                                   */
 /* ------------------------------------------------------------------ */
 
-/** GET ?action=analyze&word=xxx | ?action=lookup&word=xxx | ?action=ping */
+/** GET ?action=lookup&word=xxx | ?action=ping */
 function doGet(e) {
   const p = (e && e.parameter) || {};
   try {
-    if (p.action === 'analyze') {
-      const key = normalizeWord_(p.word);
-      const cached = findWord_(key);
-      if (cached) return json_({ ok: true, data: cached, source: cached.source || 'sheet' });
-      const data = analyzeWithAI_(key);
-      saveWord_(key, data, 'ai');
-      return json_({ ok: true, data: data, source: 'ai' });
-    }
     if (p.action === 'lookup') {
       return json_({ ok: true, data: findWord_(normalizeWord_(p.word)) });
     }
-    return json_({ ok: true, service: 'IC Cut API', ai: !!getApiKey_(), promptVersion: PROMPT_VERSION, time: new Date().toISOString() });
+    if (p.action === 'analyze') {
+      // Removed: this public endpoint spent the owner's API credit.
+      return json_({ ok: false, error: 'The AI now runs in the browser with each user\'s own API key.' });
+    }
+    return json_({ ok: true, service: 'IC Cut API', promptVersion: PROMPT_VERSION, time: new Date().toISOString() });
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
   }
 }
 
-/** POST (text/plain body containing JSON): { action: 'log', ... } */
+/** POST (text/plain body containing JSON): { action: 'log' | 'save', ... } */
 function doPost(e) {
   try {
-    const body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    if (body.action !== 'log') return json_({ ok: false, error: 'Unknown action' });
+    const raw = (e && e.postData && e.postData.contents) || '{}';
+    if (raw.length > MAX_SAVE_BYTES) return json_({ ok: false, error: 'Request too large' });
+    const body = JSON.parse(raw);
     const lock = LockService.getScriptLock();
     lock.waitLock(10000);
     try {
-      getSheet_(LOGS_SHEET, LOGS_HEADER).appendRow([
-        new Date(), clip_(body.participant, 40), clip_(body.event, 40), clip_(body.word, 60),
-        clip_(body.source, 20), clip_(body.lang, 5), clip_(body.userAgent, 300)
-      ]);
+      if (body.action === 'log') {
+        getSheet_(LOGS_SHEET, LOGS_HEADER).appendRow([
+          new Date(), clip_(body.participant, 40), clip_(body.event, 40), clip_(body.word, 60),
+          clip_(body.source, 20), clip_(body.lang, 5), clip_(body.userAgent, 300)
+        ]);
+        return json_({ ok: true });
+      }
+      if (body.action === 'save') return json_(saveSharedAnalysis_(body));
+      return json_({ ok: false, error: 'Unknown action' });
     } finally {
       lock.releaseLock();
     }
-    return json_({ ok: true });
   } catch (err) {
     return json_({ ok: false, error: String(err.message || err) });
   }
+}
+
+/**
+ * Stores an AI analysis made in a user's browser so that the next person who
+ * looks up the word gets it instantly. The answer is re-validated here, so a
+ * malformed or hand-crafted payload cannot break the shared cache.
+ */
+function saveSharedAnalysis_(body) {
+  const key = normalizeWord_(body.word);
+  const ai = body.ai;
+  if (!ai || typeof ai !== 'object') return { ok: false, error: 'Missing analysis' };
+  if (ALLOWED_MODELS.indexOf(body.model) < 0) return { ok: false, error: 'Unknown model' };
+  const needed = ['pos', 'gloss', 'process', 'insights', 'family', 'morphemes', 'nodes'];
+  for (let i = 0; i < needed.length; i++) {
+    if (!ai[needed[i]] || typeof ai[needed[i]] !== 'object') return { ok: false, error: 'Missing field ' + needed[i] };
+  }
+  const problems = validateAnalysis_(ai, key);
+  if (problems.length) return { ok: false, error: problems.join('; ') };
+  if (findWord_(key)) return { ok: true, skipped: 'already cached' };
+  const data = toAppFormat_(ai, key);
+  data.model = body.model;
+  saveWord_(key, data, 'ai');
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
