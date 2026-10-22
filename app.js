@@ -378,9 +378,13 @@
     n.innerHTML = esc(msg) + (actionHtml || "");
   }
 
+  /** Friendly message plus the provider's own wording, so problems can be diagnosed. */
   function errorMessage(err) {
     if (err.code === "apiError") return t("err_apiError") + err.message;
-    return I18N.en["err_" + err.code] ? t("err_" + err.code) : err.message;
+    if (!I18N.en["err_" + err.code]) return err.message;
+    const detail = err.message && !/^HTTP \d+$/.test(err.message) && !["network", "refused", "invalid"].includes(err.code)
+      ? ` (${err.message.slice(0, 220)})` : "";
+    return t("err_" + err.code) + detail;
   }
 
   // ---------- Loading indicator ----------
@@ -490,6 +494,8 @@
     const s = $("#key-status");
     s.textContent = msg;
     s.className = "key-status" + (kind ? " " + kind : "");
+    // On small screens the dialog scrolls; keep the message in view.
+    if (msg) s.scrollIntoView({ block: "nearest" });
   }
 
   async function saveKeyDialog(e) {
@@ -507,7 +513,9 @@
       closeKeyDialogSoon();
       return;
     }
-    if (!AI.looksLikeKey(p, key)) { keyStatus(t("keyBadFormat_" + p), "err"); return; }
+    // The provider decides whether a key is valid; the prefix is only a hint
+    // shown when the check fails (key formats can change).
+    const looksRight = AI.looksLikeKey(p, key);
 
     const btn = $("#key-save");
     btn.disabled = true;
@@ -520,7 +528,7 @@
       updateKeyButton();
       closeKeyDialogSoon();
     } catch (err) {
-      keyStatus(errorMessage(err), "err");
+      keyStatus(errorMessage(err) + (looksRight ? "" : " " + t("keyBadFormat_" + p)), "err");
     } finally {
       btn.disabled = false;
     }

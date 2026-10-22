@@ -13,6 +13,7 @@
 (function () {
   const PROMPT_VERSION = 3;
   const PROVIDER_STORE = "ic-ai-provider";
+  let lastModel = "";            // the model that actually answered the last call
   const EXPECTED_CHARS = 3200;   // typical answer length, for the progress bar
 
   // Speed modes per provider. For Claude, "fallbacks" retries on another
@@ -273,21 +274,17 @@
     return out;
   }
 
-  async function callGemini(userText, onProgress, signal) {
-    const key = getKey("gemini");
-    if (!key) throw Object.assign(new Error("No API key"), { code: "noKey" });
-    const mode = PROVIDERS.gemini.modes[getMode("gemini")];
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${mode.model}:streamGenerateContent?alt=sse`;
-
+  /** Opens the Gemini stream for one model, trying the request variants in order. */
+  async function openGeminiStream(model, thinking, userText, key, signal) {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
     // Try the full config first; if the API rejects a field (400), retry with
     // the most widely supported form: older schema dialect, default thinking.
     const variants = [
-      { responseMimeType: "application/json", responseJsonSchema: SCHEMA, thinkingConfig: { thinkingLevel: mode.thinking } },
+      { responseMimeType: "application/json", responseJsonSchema: SCHEMA, thinkingConfig: { thinkingLevel: thinking } },
       { responseMimeType: "application/json", responseSchema: toOpenApiSchema(SCHEMA) }
     ];
-    let res;
     for (let v = 0; v < variants.length; v++) {
-      res = await send(url, {
+      const res = await send(url, {
         method: "POST",
         headers: geminiHeaders(key),
         body: JSON.stringify({
@@ -297,10 +294,31 @@
         }),
         signal
       });
-      if (res.ok) break;
-      const body = await res.json().catch(() => null);
-      const err = apiError(res.status, body);
+      if (res.ok) return res;
+      const err = apiError(res.status, await res.json().catch(() => null));
       if (res.status !== 400 || err.code === "badKey" || v === variants.length - 1) throw err;
+    }
+  }
+
+  // A model that is missing (404) or has no free quota for this key (429 with
+  // a zero limit) falls back to Flash-Lite, the model most widely available free.
+  function modelUnavailable(err) {
+    return err.status === 404 || (err.status === 429 && /limit:\s*0|free.?tier|quota/i.test(err.message));
+  }
+
+  async function callGemini(userText, onProgress, signal) {
+    const key = getKey("gemini");
+    if (!key) throw Object.assign(new Error("No API key"), { code: "noKey" });
+    const modes = PROVIDERS.gemini.modes;
+    const mode = modes[getMode("gemini")];
+    let res;
+    try {
+      res = await openGeminiStream(mode.model, mode.thinking, userText, key, signal);
+      lastModel = mode.model;
+    } catch (err) {
+      if (mode.model === modes.fast.model || !modelUnavailable(err)) throw err;
+      res = await openGeminiStream(modes.fast.model, modes.fast.thinking, userText, key, signal);
+      lastModel = modes.fast.model;
     }
 
     let text = "", finish = "", blocked = "", started = false;
@@ -456,6 +474,7 @@
         onProgress && onProgress({ phase: "thinking", pct: 2 });
       }
       const call = getProvider() === "gemini" ? callGemini : callClaude;
+      lastModel = currentModel();
       let raw;
       try {
         raw = await call(text, onProgress, signal);
@@ -465,7 +484,7 @@
         problems = ["The answer was not valid JSON that follows the schema."];   // parse or shape error
       }
       if (!problems.length) {
-        const model = currentModel();
+        const model = lastModel;
         const data = toAppFormat(raw, word, model);
         data.attempts = attempt;
         return { data, raw, model };
