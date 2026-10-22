@@ -53,6 +53,7 @@
       loadThinking: "AI is thinking…",
       loadWriting: "AI is writing the analysis…",
       loadRetry: "Double-checking the result…",
+      loadBusy: "The AI is busy — trying again…",
       // API key
       keyBtn: "API key", keyConnected: "AI ready",
       keyTitle: "Connect AI",
@@ -115,6 +116,7 @@
       loadThinking: "AI đang suy nghĩ…",
       loadWriting: "AI đang viết kết quả phân tích…",
       loadRetry: "Đang kiểm tra lại kết quả…",
+      loadBusy: "AI đang bận — đang thử lại…",
       keyBtn: "API key", keyConnected: "AI sẵn sàng",
       keyTitle: "Kết nối AI",
       keyIntro: "Dùng API key của riêng bạn. Key chỉ được lưu trong trình duyệt này và chỉ gửi tới nhà cung cấp AI — không gửi cho chủ trang web.",
@@ -403,7 +405,7 @@
     }, 250);
   }
   function setProgress(p) {
-    const label = { cache: "loadCache", thinking: "loadThinking", writing: "loadWriting", retry: "loadRetry" }[p.phase];
+    const label = { cache: "loadCache", thinking: "loadThinking", writing: "loadWriting", retry: "loadRetry", busy: "loadBusy" }[p.phase];
     if (label) $("#loading-text").textContent = t(label);
     // While the model is thinking we have no output yet: creep slowly so the bar still moves.
     const bar = $("#progress-bar");

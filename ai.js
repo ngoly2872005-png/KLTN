@@ -306,20 +306,37 @@
     return err.status === 404 || (err.status === 429 && /limit:\s*0|free.?tier|quota/i.test(err.message));
   }
 
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+
   async function callGemini(userText, onProgress, signal) {
     const key = getKey("gemini");
     if (!key) throw Object.assign(new Error("No API key"), { code: "noKey" });
     const modes = PROVIDERS.gemini.modes;
-    const mode = modes[getMode("gemini")];
-    let res;
-    try {
-      res = await openGeminiStream(mode.model, mode.thinking, userText, key, signal);
-      lastModel = mode.model;
-    } catch (err) {
-      if (mode.model === modes.fast.model || !modelUnavailable(err)) throw err;
-      res = await openGeminiStream(modes.fast.model, modes.fast.thinking, userText, key, signal);
-      lastModel = modes.fast.model;
+    const chosen = getMode("gemini");
+    // Chosen model first, then the other Gemini model. A busy model (503
+    // "high demand") is retried once after a pause before switching.
+    const order = [modes[chosen], modes[chosen === "fast" ? "balanced" : "fast"]];
+    let res, lastErr;
+    for (const mode of order) {
+      for (let attempt = 1; attempt <= 2 && !res; attempt++) {
+        try {
+          res = await openGeminiStream(mode.model, mode.thinking, userText, key, signal);
+          lastModel = mode.model;
+        } catch (err) {
+          lastErr = err;
+          if (err.code === "overloaded" && attempt === 1) {
+            onProgress && onProgress({ phase: "busy", pct: 0 });
+            await sleep(1500);
+            continue;
+          }
+          if (err.code !== "overloaded" && !modelUnavailable(err)) throw err;
+          break;   // try the next model
+        }
+      }
+      if (res) break;
+      onProgress && onProgress({ phase: "busy", pct: 0 });
     }
+    if (!res) throw lastErr;
 
     let text = "", finish = "", blocked = "", started = false;
     await readSSE(res, ev => {
@@ -357,13 +374,21 @@
     };
     if (mode.fallbacks) body.fallbacks = "default";
 
-    const res = await send("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: claudeHeaders(key, mode.fallbacks ? "server-side-fallback-2026-07-01" : ""),
-      body: JSON.stringify(body),
-      signal
-    });
-    if (!res.ok) throw apiError(res.status, await res.json().catch(() => null));
+    // An overloaded API (529 / 5xx) is retried once after a short pause.
+    let res;
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      res = await send("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: claudeHeaders(key, mode.fallbacks ? "server-side-fallback-2026-07-01" : ""),
+        body: JSON.stringify(body),
+        signal
+      });
+      if (res.ok) break;
+      const err = apiError(res.status, await res.json().catch(() => null));
+      if (err.code !== "overloaded" || attempt === 2) throw err;
+      onProgress && onProgress({ phase: "busy", pct: 0 });
+      await sleep(2000);
+    }
 
     // Server-sent events: collect the JSON text as it streams in.
     let text = "", stopReason = "", started = false;
