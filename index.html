@@ -34,12 +34,17 @@
 
   <dialog id="key-dialog" class="key-dialog" aria-labelledby="key-title">
     <form method="dialog" id="key-form" class="key-form">
-      <h2 id="key-title" data-i18n="keyTitle">Kết nối Claude AI</h2>
-      <p class="key-intro" data-i18n="keyIntro">Dùng API key Claude của riêng bạn. Key chỉ được lưu trong trình duyệt này và chỉ gửi tới Anthropic — không gửi cho chủ trang web.</p>
+      <h2 id="key-title" data-i18n="keyTitle">Kết nối AI</h2>
+      <p class="key-intro" data-i18n="keyIntro">Dùng API key của riêng bạn. Key chỉ được lưu trong trình duyệt này và chỉ gửi tới nhà cung cấp AI — không gửi cho chủ trang web.</p>
+
+      <div class="provider" role="radiogroup" aria-label="AI provider">
+        <label><input type="radio" name="provider" value="gemini"><span><b>Gemini</b><small data-i18n="providerGeminiHint">Google · có key miễn phí</small></span></label>
+        <label><input type="radio" name="provider" value="claude"><span><b>Claude</b><small data-i18n="providerClaudeHint">Anthropic · trả phí</small></span></label>
+      </div>
 
       <label class="field">
         <span data-i18n="keyLabel">API key</span>
-        <input id="key-input" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…">
+        <input id="key-input" type="password" autocomplete="off" spellcheck="false">
         <small id="key-current" class="field-hint"></small>
       </label>
 
@@ -50,9 +55,7 @@
 
       <fieldset class="speed">
         <legend data-i18n="speedLabel">Tốc độ AI</legend>
-        <label><input type="radio" name="mode" value="fast"><span><b data-i18n="modeFast">Nhanh</b><small data-i18n="modeFastHint">Haiku 5.5 · rẻ nhất</small></span></label>
-        <label><input type="radio" name="mode" value="balanced"><span><b data-i18n="modeBalanced">Cân bằng</b><small data-i18n="modeBalancedHint">Sonnet 5.5 · khuyên dùng</small></span></label>
-        <label><input type="radio" name="mode" value="accurate"><span><b data-i18n="modeAccurate">Chính xác nhất</b><small data-i18n="modeAccurateHint">Opus 5.5 · chậm hơn</small></span></label>
+        <div id="speed-options" class="speed-options"></div>
       </fieldset>
 
       <p id="key-status" class="key-status" role="status"></p>
@@ -63,7 +66,7 @@
         <button type="button" id="key-cancel" class="btn-ghost" data-i18n="keyCancel">Đóng</button>
         <button type="submit" id="key-save" class="btn-primary" data-i18n="keySave">Lưu</button>
       </div>
-      <p class="key-help"><span data-i18n="keyHelp">Chưa có key?</span> <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" data-i18n="keyHelpLink">Tạo key tại console.anthropic.com</a></p>
+      <p class="key-help" id="key-help"></p>
     </form>
   </dialog>
 

@@ -1,9 +1,10 @@
 /*
- * IC Cut — Claude AI analysis in the browser ("bring your own key").
+ * IC Cut — AI analysis in the browser ("bring your own key").
  *
- * Each user enters their own Claude API key once. It is stored only in that
- * browser (localStorage, or sessionStorage on a shared computer) and sent
- * only to api.anthropic.com — never to the Google Sheet or to GitHub.
+ * Two providers: Google Gemini (free key from Google AI Studio) and
+ * Anthropic Claude. Each user enters their own key once. It is stored only
+ * in that browser (localStorage, or sessionStorage on a shared computer) and
+ * sent only to the provider's API — never to the Google Sheet or to GitHub.
  *
  * SYSTEM_PROMPT, the schema and validateAnalysis() mirror Code.gs (which
  * keeps them for runEvalSuite and for validating shared-cache saves).
@@ -11,19 +12,34 @@
  */
 (function () {
   const PROMPT_VERSION = 3;
-  const API_URL = "https://api.anthropic.com/v1/messages";
-  const KEY_STORE = "ic-claude-key";
-  const MODE_STORE = "ic-ai-mode";
-
-  // Speed modes. "fallbacks" retries on another model after a safety refusal
-  // (server-side; only some models accept it).
-  const MODES = {
-    fast:     { model: "claude-haiku-5-5",  effort: "low",    fallbacks: false },
-    balanced: { model: "claude-sonnet-5-5", effort: "low",    fallbacks: true  },
-    accurate: { model: "claude-opus-5-5",   effort: "medium", fallbacks: true  }
-  };
-  const DEFAULT_MODE = "balanced";
+  const PROVIDER_STORE = "ic-ai-provider";
   const EXPECTED_CHARS = 3200;   // typical answer length, for the progress bar
+
+  // Speed modes per provider. For Claude, "fallbacks" retries on another
+  // model after a safety refusal (server-side; only some models accept it).
+  const PROVIDERS = {
+    gemini: {
+      keyStore: "ic-gemini-key",
+      modeStore: "ic-ai-mode-gemini",
+      keyPattern: /^AIza[0-9A-Za-z_-]{20,}$/,
+      defaultMode: "balanced",
+      modes: {
+        fast:     { model: "gemini-3.5-flash-lite", thinking: "minimal" },
+        balanced: { model: "gemini-3.8-flash",      thinking: "low" }
+      }
+    },
+    claude: {
+      keyStore: "ic-claude-key",
+      modeStore: "ic-ai-mode",
+      keyPattern: /^sk-ant-/,
+      defaultMode: "balanced",
+      modes: {
+        fast:     { model: "claude-haiku-5-5",  effort: "low",    fallbacks: false },
+        balanced: { model: "claude-sonnet-5-5", effort: "low",    fallbacks: true  },
+        accurate: { model: "claude-opus-5-5",   effort: "medium", fallbacks: true  }
+      }
+    }
+  };
 
   const SYSTEM_PROMPT = [
     'You are an expert English morphologist helping Vietnamese English-major students practise Immediate Constituent (IC) analysis.',
@@ -141,20 +157,34 @@
   function write(k, v, kind) { try { const s = store(kind); if (s) s.setItem(k, v); } catch (e) { /* blocked */ } }
   function remove(k) { for (const s of [store("local"), store("session")]) { try { s && s.removeItem(k); } catch (e) { /* blocked */ } } }
 
-  function getKey() { return read(KEY_STORE); }
-  function hasKey() { return !!getKey(); }
-  function getMode() { const m = read(MODE_STORE); return MODES[m] ? m : DEFAULT_MODE; }
-  function maskedKey() { const k = getKey(); return k ? k.slice(0, 10) + "…" + k.slice(-4) : ""; }
+  /** Active provider: the one last chosen, else whichever has a key, else Gemini (free). */
+  function getProvider() {
+    const p = read(PROVIDER_STORE);
+    if (PROVIDERS[p]) return p;
+    return read(PROVIDERS.claude.keyStore) && !read(PROVIDERS.gemini.keyStore) ? "claude" : "gemini";
+  }
+  function setProvider(p) { if (PROVIDERS[p]) write(PROVIDER_STORE, p, "local"); }
+
+  function getKey(p) { return read(PROVIDERS[p || getProvider()].keyStore); }
+  function hasKey(p) { return !!getKey(p); }
+  function getMode(p) {
+    const cfg = PROVIDERS[p || getProvider()];
+    const m = read(cfg.modeStore);
+    return cfg.modes[m] ? m : cfg.defaultMode;
+  }
+  function currentModel() { const p = getProvider(); return PROVIDERS[p].modes[getMode(p)].model; }
+  function maskedKey(p) { const k = getKey(p); return k ? k.slice(0, 8) + "…" + k.slice(-4) : ""; }
+  function looksLikeKey(p, key) { return PROVIDERS[p].keyPattern.test(key.trim()); }
 
   /** sharedDevice: keep the key only until the tab is closed. */
-  function saveKey(key, sharedDevice) {
-    remove(KEY_STORE);
-    write(KEY_STORE, key.trim(), sharedDevice ? "session" : "local");
+  function saveKey(p, key, sharedDevice) {
+    remove(PROVIDERS[p].keyStore);
+    write(PROVIDERS[p].keyStore, key.trim(), sharedDevice ? "session" : "local");
   }
-  function clearKey() { remove(KEY_STORE); }
-  function saveMode(mode) { if (MODES[mode]) write(MODE_STORE, mode, "local"); }
+  function clearKey(p) { remove(PROVIDERS[p || getProvider()].keyStore); }
+  function saveMode(p, mode) { if (PROVIDERS[p].modes[mode]) write(PROVIDERS[p].modeStore, mode, "local"); }
 
-  function headers(key, beta) {
+  function claudeHeaders(key, beta) {
     const h = {
       "content-type": "application/json",
       "x-api-key": key,
@@ -165,11 +195,16 @@
     if (beta) h["anthropic-beta"] = beta;
     return h;
   }
+  function geminiHeaders(key) {
+    return { "content-type": "application/json", "x-goog-api-key": key };
+  }
 
-  // ---------- Errors ----------
+  // ---------- Errors (both providers → the same codes) ----------
   function apiError(status, body) {
-    const msg = (body && body.error && body.error.message) || "";
-    const code = status === 401 ? "badKey"
+    const err = (body && (Array.isArray(body) ? body[0] : body).error) || {};
+    const msg = err.message || "";
+    const reason = ((err.details || []).find(d => d.reason) || {}).reason || "";
+    const code = status === 401 || reason === "API_KEY_INVALID" || /API key not valid/i.test(msg) ? "badKey"
       : status === 403 ? "noPermission"
       : status === 429 ? "rateLimit"
       : status === 529 || status >= 500 ? "overloaded"
@@ -178,23 +213,120 @@
     return Object.assign(new Error(msg || ("HTTP " + status)), { code, status });
   }
 
-  /** Cheap key check: listing models costs nothing. */
-  async function testKey(key) {
-    let res;
+  async function send(url, opts) {
     try {
-      res = await fetch("https://api.anthropic.com/v1/models?limit=1", { headers: headers(key.trim()) });
+      return await fetch(url, opts);
     } catch (e) {
-      throw Object.assign(new Error(e.message), { code: "network" });
+      throw Object.assign(new Error(e.message), { code: e.name === "AbortError" ? "aborted" : "network" });
     }
+  }
+
+  /** Cheap key check: listing models costs nothing on either provider. */
+  async function testKey(p, key) {
+    const k = key.trim();
+    const res = p === "gemini"
+      ? await send("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1", { headers: geminiHeaders(k) })
+      : await send("https://api.anthropic.com/v1/models?limit=1", { headers: claudeHeaders(k) });
     if (!res.ok) throw apiError(res.status, await res.json().catch(() => null));
     return true;
   }
 
-  // ---------- One streamed Messages API call ----------
-  async function callClaude(userText, onProgress, signal) {
-    const key = getKey();
+  /** Reads a server-sent-events body and hands each JSON event to onEvent. */
+  async function readSSE(res, onEvent) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const flush = line => {
+      line = line.trim();
+      if (!line.startsWith("data:")) return;
+      let ev;
+      try { ev = JSON.parse(line.slice(5)); } catch (e) { return; }
+      onEvent(ev);
+    };
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        flush(buffer.slice(0, nl));
+        buffer = buffer.slice(nl + 1);
+      }
+    }
+    flush(buffer);
+  }
+
+  function reportWriting(onProgress, text) {
+    onProgress && onProgress({ phase: "writing", pct: Math.min(96, 5 + (text.length / EXPECTED_CHARS) * 91) });
+  }
+
+  // ---------- Gemini: one streamed generateContent call ----------
+  /** Gemini's older responseSchema dialect: no additionalProperties, upper-case types. */
+  function toOpenApiSchema(s) {
+    if (Array.isArray(s)) return s.map(toOpenApiSchema);
+    if (!s || typeof s !== "object") return s;
+    const out = {};
+    for (const k in s) {
+      if (k === "additionalProperties") continue;
+      out[k] = k === "type" ? String(s[k]).toUpperCase() : toOpenApiSchema(s[k]);
+    }
+    return out;
+  }
+
+  async function callGemini(userText, onProgress, signal) {
+    const key = getKey("gemini");
     if (!key) throw Object.assign(new Error("No API key"), { code: "noKey" });
-    const mode = MODES[getMode()];
+    const mode = PROVIDERS.gemini.modes[getMode("gemini")];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${mode.model}:streamGenerateContent?alt=sse`;
+
+    // Try the full config first; if the API rejects a field (400), retry with
+    // the most widely supported form: older schema dialect, default thinking.
+    const variants = [
+      { responseMimeType: "application/json", responseJsonSchema: SCHEMA, thinkingConfig: { thinkingLevel: mode.thinking } },
+      { responseMimeType: "application/json", responseSchema: toOpenApiSchema(SCHEMA) }
+    ];
+    let res;
+    for (let v = 0; v < variants.length; v++) {
+      res = await send(url, {
+        method: "POST",
+        headers: geminiHeaders(key),
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: userText }] }],
+          generationConfig: Object.assign({ maxOutputTokens: 16000 }, variants[v])
+        }),
+        signal
+      });
+      if (res.ok) break;
+      const body = await res.json().catch(() => null);
+      const err = apiError(res.status, body);
+      if (res.status !== 400 || err.code === "badKey" || v === variants.length - 1) throw err;
+    }
+
+    let text = "", finish = "", blocked = "", started = false;
+    await readSSE(res, ev => {
+      if (ev.error) throw apiError(ev.error.code || 500, ev);
+      if (ev.promptFeedback && ev.promptFeedback.blockReason) blocked = ev.promptFeedback.blockReason;
+      const cand = (ev.candidates || [])[0];
+      if (!cand) return;
+      ((cand.content && cand.content.parts) || []).forEach(part => {
+        if (part.thought || typeof part.text !== "string") return;   // skip thinking summaries
+        text += part.text;
+        if (!started) { started = true; onProgress && onProgress({ phase: "writing", pct: 5 }); }
+        reportWriting(onProgress, text);
+      });
+      if (cand.finishReason) finish = cand.finishReason;
+    });
+    if (blocked || /SAFETY|PROHIBITED|BLOCKLIST|SPII/.test(finish)) throw Object.assign(new Error(blocked || finish), { code: "refused" });
+    if (finish === "MAX_TOKENS") throw Object.assign(new Error("cut off"), { code: "apiError" });
+    return JSON.parse(text);
+  }
+
+  // ---------- Claude: one streamed Messages API call ----------
+  async function callClaude(userText, onProgress, signal) {
+    const key = getKey("claude");
+    if (!key) throw Object.assign(new Error("No API key"), { code: "noKey" });
+    const mode = PROVIDERS.claude.modes[getMode("claude")];
 
     const body = {
       model: mode.model,
@@ -207,45 +339,27 @@
     };
     if (mode.fallbacks) body.fallbacks = "default";
 
-    let res;
-    try {
-      res = await fetch(API_URL, {
-        method: "POST",
-        headers: headers(key, mode.fallbacks ? "server-side-fallback-2026-07-01" : ""),
-        body: JSON.stringify(body),
-        signal
-      });
-    } catch (e) {
-      throw Object.assign(new Error(e.message), { code: e.name === "AbortError" ? "aborted" : "network" });
-    }
+    const res = await send("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: claudeHeaders(key, mode.fallbacks ? "server-side-fallback-2026-07-01" : ""),
+      body: JSON.stringify(body),
+      signal
+    });
     if (!res.ok) throw apiError(res.status, await res.json().catch(() => null));
 
     // Server-sent events: collect the JSON text as it streams in.
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "", text = "", stopReason = "", started = false;
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let nl;
-      while ((nl = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, nl).trim();
-        buffer = buffer.slice(nl + 1);
-        if (!line.startsWith("data:")) continue;
-        let ev;
-        try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
-        if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") {
-          text += ev.delta.text;
-          if (!started) { started = true; onProgress && onProgress({ phase: "writing", pct: 5 }); }
-          onProgress && onProgress({ phase: "writing", pct: Math.min(96, 5 + (text.length / EXPECTED_CHARS) * 91) });
-        } else if (ev.type === "message_delta" && ev.delta && ev.delta.stop_reason) {
-          stopReason = ev.delta.stop_reason;
-        } else if (ev.type === "error") {
-          throw Object.assign(new Error((ev.error && ev.error.message) || "stream error"), { code: "overloaded" });
-        }
+    let text = "", stopReason = "", started = false;
+    await readSSE(res, ev => {
+      if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") {
+        text += ev.delta.text;
+        if (!started) { started = true; onProgress && onProgress({ phase: "writing", pct: 5 }); }
+        reportWriting(onProgress, text);
+      } else if (ev.type === "message_delta" && ev.delta && ev.delta.stop_reason) {
+        stopReason = ev.delta.stop_reason;
+      } else if (ev.type === "error") {
+        throw Object.assign(new Error((ev.error && ev.error.message) || "stream error"), { code: "overloaded" });
       }
-    }
+    });
     if (stopReason === "refusal") throw Object.assign(new Error("refused"), { code: "refused" });
     if (stopReason === "max_tokens") throw Object.assign(new Error("cut off"), { code: "apiError" });
     return JSON.parse(text);
@@ -341,10 +455,17 @@
       } else {
         onProgress && onProgress({ phase: "thinking", pct: 2 });
       }
-      const raw = await callClaude(text, onProgress, signal);
-      problems = validateAnalysis(raw, word);
+      const call = getProvider() === "gemini" ? callGemini : callClaude;
+      let raw;
+      try {
+        raw = await call(text, onProgress, signal);
+        problems = validateAnalysis(raw, word);
+      } catch (e) {
+        if (e.code) throw e;                                  // API / network error
+        problems = ["The answer was not valid JSON that follows the schema."];   // parse or shape error
+      }
       if (!problems.length) {
-        const model = MODES[getMode()].model;
+        const model = currentModel();
         const data = toAppFormat(raw, word, model);
         data.attempts = attempt;
         return { data, raw, model };
@@ -354,8 +475,9 @@
   }
 
   window.ICAI = {
-    PROMPT_VERSION, MODES, DEFAULT_MODE,
-    getKey, hasKey, maskedKey, saveKey, clearKey, testKey,
+    PROMPT_VERSION, PROVIDERS,
+    getProvider, setProvider, currentModel,
+    getKey, hasKey, maskedKey, looksLikeKey, saveKey, clearKey, testKey,
     getMode, saveMode, analyze, validateAnalysis
   };
 })();

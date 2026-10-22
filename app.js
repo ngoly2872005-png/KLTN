@@ -55,29 +55,31 @@
       loadRetry: "Double-checking the result…",
       // API key
       keyBtn: "API key", keyConnected: "AI ready",
-      keyTitle: "Connect Claude AI",
-      keyIntro: "Use your own Claude API key. It is stored only in this browser and sent only to Anthropic — never to the owner of this site.",
+      keyTitle: "Connect AI",
+      keyIntro: "Use your own API key. It is stored only in this browser and sent only to the AI provider — never to the owner of this site.",
+      providerGeminiHint: "Google · free key available", providerClaudeHint: "Anthropic · paid",
       keyLabel: "API key",
       keyShared: "This is a shared computer (lab) — forget the key when the tab is closed",
       speedLabel: "AI speed",
-      modeFast: "Fast", modeFastHint: "Haiku 5.5 · cheapest",
-      modeBalanced: "Balanced", modeBalancedHint: "Sonnet 5.5 · recommended",
-      modeAccurate: "Most accurate", modeAccurateHint: "Opus 5.5 · slower",
+      mode_fast: "Fast", mode_balanced: "Balanced", mode_accurate: "Most accurate",
+      hint_gemini_fast: "Flash-Lite · fastest", hint_gemini_balanced: "Flash · recommended",
+      hint_claude_fast: "Haiku 5.5 · cheapest", hint_claude_balanced: "Sonnet 5.5 · recommended", hint_claude_accurate: "Opus 5.5 · slower",
       keyClear: "Remove key", keyCancel: "Close", keySave: "Save",
-      keyHelp: "No key yet?", keyHelpLink: "Create one at console.anthropic.com",
+      help_gemini: "Free key: sign in with Gmail at", help_claude: "No key yet? Create one at",
       keyCurrent: "Saved key: {k} — leave empty to keep it.",
       keyChecking: "Checking the key…",
       keyOk: "The key works and is saved in this browser.",
-      keyBadFormat: "A Claude API key starts with sk-ant-.",
+      keyBadFormat_gemini: "A Gemini API key starts with AIza.",
+      keyBadFormat_claude: "A Claude API key starts with sk-ant-.",
       keyMissing: "Please paste your API key.",
       keyCleared: "The key was removed from this browser.",
       modeSaved: "Saved.",
-      needKey: "This word is new. Enter your Claude API key once to let AI analyse it.",
+      needKey: "This word is new. Enter an API key once (Gemini is free) to let AI analyse it.",
       needKeyBtn: "Enter key",
       err_badKey: "The API key is not valid. Please check it.",
       err_noPermission: "This API key is not allowed to use this model.",
       err_noCredit: "Your Anthropic account has no credit left. Add credit at console.anthropic.com.",
-      err_rateLimit: "Too many requests right now. Please wait a minute and try again.",
+      err_rateLimit: "Too many requests right now (free keys have a per-minute limit). Please wait a minute and try again.",
       err_overloaded: "The AI is busy. Please try again in a moment.",
       err_network: "Could not reach the AI. Check your internet connection.",
       err_refused: "The AI declined to analyse this word.",
@@ -114,29 +116,31 @@
       loadWriting: "AI đang viết kết quả phân tích…",
       loadRetry: "Đang kiểm tra lại kết quả…",
       keyBtn: "API key", keyConnected: "AI sẵn sàng",
-      keyTitle: "Kết nối Claude AI",
-      keyIntro: "Dùng API key Claude của riêng bạn. Key chỉ được lưu trong trình duyệt này và chỉ gửi tới Anthropic — không gửi cho chủ trang web.",
+      keyTitle: "Kết nối AI",
+      keyIntro: "Dùng API key của riêng bạn. Key chỉ được lưu trong trình duyệt này và chỉ gửi tới nhà cung cấp AI — không gửi cho chủ trang web.",
+      providerGeminiHint: "Google · có key miễn phí", providerClaudeHint: "Anthropic · trả phí",
       keyLabel: "API key",
       keyShared: "Đây là máy dùng chung (phòng máy) — chỉ nhớ key đến khi đóng tab",
       speedLabel: "Tốc độ AI",
-      modeFast: "Nhanh", modeFastHint: "Haiku 5.5 · rẻ nhất",
-      modeBalanced: "Cân bằng", modeBalancedHint: "Sonnet 5.5 · khuyên dùng",
-      modeAccurate: "Chính xác nhất", modeAccurateHint: "Opus 5.5 · chậm hơn",
+      mode_fast: "Nhanh", mode_balanced: "Cân bằng", mode_accurate: "Chính xác nhất",
+      hint_gemini_fast: "Flash-Lite · nhanh nhất", hint_gemini_balanced: "Flash · khuyên dùng",
+      hint_claude_fast: "Haiku 5.5 · rẻ nhất", hint_claude_balanced: "Sonnet 5.5 · khuyên dùng", hint_claude_accurate: "Opus 5.5 · chậm hơn",
       keyClear: "Xóa key", keyCancel: "Đóng", keySave: "Lưu",
-      keyHelp: "Chưa có key?", keyHelpLink: "Tạo key tại console.anthropic.com",
+      help_gemini: "Key miễn phí: đăng nhập Gmail tại", help_claude: "Chưa có key? Tạo key tại",
       keyCurrent: "Key đang lưu: {k} — để trống nếu muốn giữ nguyên.",
       keyChecking: "Đang kiểm tra key…",
       keyOk: "Key hợp lệ và đã được lưu trong trình duyệt này.",
-      keyBadFormat: "API key của Claude bắt đầu bằng sk-ant-.",
+      keyBadFormat_gemini: "API key của Gemini bắt đầu bằng AIza.",
+      keyBadFormat_claude: "API key của Claude bắt đầu bằng sk-ant-.",
       keyMissing: "Vui lòng dán API key của bạn.",
       keyCleared: "Đã xóa key khỏi trình duyệt này.",
       modeSaved: "Đã lưu.",
-      needKey: "Đây là từ mới. Hãy nhập API key Claude một lần để AI phân tích.",
+      needKey: "Đây là từ mới. Hãy nhập API key một lần (Gemini miễn phí) để AI phân tích.",
       needKeyBtn: "Nhập key",
       err_badKey: "API key không hợp lệ. Vui lòng kiểm tra lại.",
       err_noPermission: "API key này không được phép dùng model đã chọn.",
       err_noCredit: "Tài khoản Anthropic đã hết tiền. Hãy nạp thêm tại console.anthropic.com.",
-      err_rateLimit: "Đang có quá nhiều yêu cầu. Vui lòng đợi một phút rồi thử lại.",
+      err_rateLimit: "Đang có quá nhiều yêu cầu (key miễn phí bị giới hạn số lượt mỗi phút). Vui lòng đợi một phút rồi thử lại.",
       err_overloaded: "AI đang bận. Vui lòng thử lại sau giây lát.",
       err_network: "Không kết nối được tới AI. Hãy kiểm tra mạng.",
       err_refused: "AI từ chối phân tích từ này.",
@@ -247,10 +251,16 @@
     updateKeyButton();
   }
 
+  const PROVIDER_NAMES = { gemini: "Gemini", claude: "Claude" };
+  const KEY_LINKS = {
+    gemini: ["https://aistudio.google.com/apikey", "aistudio.google.com"],
+    claude: ["https://console.anthropic.com/settings/keys", "console.anthropic.com"]
+  };
+
   function updateKeyButton() {
     const on = AI.hasKey();
     $("#key-btn").classList.toggle("connected", on);
-    $("#key-btn-label").textContent = t(on ? "keyConnected" : "keyBtn");
+    $("#key-btn-label").textContent = on ? `${t("keyConnected")} · ${PROVIDER_NAMES[AI.getProvider()]}` : t("keyBtn");
   }
 
   function bracket(node, w) {
@@ -384,7 +394,7 @@
     clearInterval(loadTimer);
     loadTimer = setInterval(() => {
       const s = ((Date.now() - started) / 1000).toFixed(0);
-      const model = AI.hasKey() ? AI.MODES[AI.getMode()].model + " · " : "";
+      const model = AI.hasKey() ? AI.currentModel() + " · " : "";
       $("#loading-meta").textContent = model + s + "s";
     }, 250);
   }
@@ -448,14 +458,30 @@
   }
 
   // ---------- API key dialog ----------
+  function dialogProvider() {
+    const r = document.querySelector('#key-form input[name="provider"]:checked');
+    return r ? r.value : AI.getProvider();
+  }
+
+  /** Fills the key field hint, speed options and help link for one provider. */
+  function renderProviderUI(p) {
+    $("#key-input").placeholder = p === "gemini" ? "AIza…" : "sk-ant-…";
+    $("#key-current").textContent = AI.hasKey(p) ? t("keyCurrent").replace("{k}", AI.maskedKey(p)) : "";
+    const mode = AI.getMode(p);
+    $("#speed-options").innerHTML = Object.keys(AI.PROVIDERS[p].modes).map(m => `
+      <label><input type="radio" name="mode" value="${m}"${m === mode ? " checked" : ""}>
+        <span><b>${esc(t("mode_" + m))}</b><small>${esc(t(`hint_${p}_${m}`))}</small></span></label>`).join("");
+    const [href, label] = KEY_LINKS[p];
+    $("#key-help").innerHTML = `${esc(t("help_" + p))} <a href="${href}" target="_blank" rel="noopener">${label}</a>`;
+  }
+
   function openKeyDialog() {
     const dlg = $("#key-dialog");
+    const p = AI.getProvider();
+    document.querySelectorAll('#key-form input[name="provider"]').forEach(r => { r.checked = r.value === p; });
     $("#key-input").value = "";
-    $("#key-current").textContent = AI.hasKey() ? t("keyCurrent").replace("{k}", AI.maskedKey()) : "";
-    $("#key-status").textContent = "";
-    $("#key-status").className = "key-status";
-    const mode = AI.getMode();
-    document.querySelectorAll('#key-form input[name="mode"]').forEach(r => { r.checked = r.value === mode; });
+    keyStatus("");
+    renderProviderUI(p);
     if (!dlg.open) dlg.showModal();
     $("#key-input").focus();
   }
@@ -468,24 +494,28 @@
 
   async function saveKeyDialog(e) {
     e.preventDefault();
+    const p = dialogProvider();
     const chosen = document.querySelector('#key-form input[name="mode"]:checked');
-    if (chosen) AI.saveMode(chosen.value);
+    if (chosen) AI.saveMode(p, chosen.value);
     const key = $("#key-input").value.trim();
 
     if (!key) {
-      if (!AI.hasKey()) { keyStatus(t("keyMissing"), "err"); return; }
+      if (!AI.hasKey(p)) { keyStatus(t("keyMissing"), "err"); return; }
+      AI.setProvider(p);
+      updateKeyButton();
       keyStatus(t("modeSaved"), "ok");
       closeKeyDialogSoon();
       return;
     }
-    if (!/^sk-ant-/.test(key)) { keyStatus(t("keyBadFormat"), "err"); return; }
+    if (!AI.looksLikeKey(p, key)) { keyStatus(t("keyBadFormat_" + p), "err"); return; }
 
     const btn = $("#key-save");
     btn.disabled = true;
     keyStatus(t("keyChecking"));
     try {
-      await AI.testKey(key);
-      AI.saveKey(key, $("#key-shared").checked);
+      await AI.testKey(p, key);
+      AI.saveKey(p, key, $("#key-shared").checked);
+      AI.setProvider(p);
       keyStatus(t("keyOk"), "ok");
       updateKeyButton();
       closeKeyDialogSoon();
@@ -522,17 +552,23 @@
     $("#key-form").addEventListener("submit", saveKeyDialog);
     $("#key-cancel").addEventListener("click", () => { state.pendingWord = null; $("#key-dialog").close(); });
     $("#key-clear").addEventListener("click", () => {
-      AI.clearKey();
+      AI.clearKey(dialogProvider());
       updateKeyButton();
       $("#key-current").textContent = "";
       keyStatus(t("keyCleared"), "ok");
     });
+    document.querySelectorAll('#key-form input[name="provider"]').forEach(r => r.addEventListener("change", () => {
+      $("#key-input").value = "";
+      keyStatus("");
+      renderProviderUI(r.value);
+    }));
 
     document.querySelectorAll(".lang button").forEach(b => b.addEventListener("click", () => {
       state.lang = b.dataset.lang;
       storageSet("ic-lang", state.lang);
       applyI18n();
       renderAll();
+      if ($("#key-dialog").open) renderProviderUI(dialogProvider());
     }));
 
     document.querySelector(".tabs").addEventListener("click", e => {

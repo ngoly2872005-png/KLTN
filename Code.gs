@@ -3,8 +3,9 @@
  * --------------------------------------------------------------
  * Copy this whole file into your Apps Script project (Code.gs).
  *
- * The AI itself now runs in each user's browser with THEIR OWN Claude API
- * key (see ai.js). This script never receives anyone's key. It only:
+ * The AI itself now runs in each user's browser with THEIR OWN API key —
+ * Google Gemini (free) or Anthropic Claude (see ai.js). This script never
+ * receives anyone's key. It only:
  *   - serves the shared cache of analysed words  (GET ?action=lookup)
  *   - stores new AI analyses sent by browsers     (POST action "save", validated)
  *   - stores the research log                     (POST action "log")
@@ -29,7 +30,8 @@
 
 const SHEET_ID = '';                // leave empty if bound to the Sheet
 const AI_MODEL = 'claude-opus-5-5'; // used only by testAI() / runEvalSuite()
-const ALLOWED_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'];
+const ALLOWED_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5',
+  'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 const MAX_SAVE_BYTES = 60000;
 const PROMPT_VERSION = 3;
 const MAX_ATTEMPTS = 2;             // 1 retry when the answer fails validation

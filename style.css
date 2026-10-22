@@ -312,17 +312,19 @@ body {
 .field-hint { font-weight: 500; color: var(--muted); }
 .check { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; color: #33425a; }
 .check input { margin-top: 3px; }
-.speed { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.speed { border: 0; margin: 0; padding: 0; }
 .speed legend { font-size: 13px; font-weight: 600; color: var(--navy-soft); margin-bottom: 6px; }
-.speed label { position: relative; cursor: pointer; }
-.speed input { position: absolute; opacity: 0; }
-.speed label span {
+.speed-options, .provider { display: grid; grid-auto-columns: 1fr; grid-auto-flow: column; gap: 8px; }
+.speed label, .provider label { position: relative; cursor: pointer; }
+.speed input, .provider input { position: absolute; opacity: 0; }
+.speed label span, .provider label span {
   display: flex; flex-direction: column; gap: 2px; height: 100%;
   border: 1px solid var(--line); border-radius: 12px; padding: 10px; font-size: 13.5px; transition: all .2s;
 }
-.speed label small { font-size: 11.5px; color: var(--muted); }
-.speed input:checked + span { border-color: var(--suffix); background: var(--suffix-bg); box-shadow: 0 0 0 3px rgba(59, 130, 246, .12); }
-.speed input:focus-visible + span { outline: 2px solid var(--suffix); }
+.speed label small, .provider label small { font-size: 11.5px; color: var(--muted); }
+.speed input:checked + span, .provider input:checked + span { border-color: var(--suffix); background: var(--suffix-bg); box-shadow: 0 0 0 3px rgba(59, 130, 246, .12); }
+.speed input:focus-visible + span, .provider input:focus-visible + span { outline: 2px solid var(--suffix); }
+.provider label span b { font-size: 15px; }
 .key-status { margin: 0; min-height: 20px; font-size: 13.5px; }
 .key-status.ok { color: #047857; }
 .key-status.err { color: #b91c1c; }
@@ -358,7 +360,7 @@ body {
   .search { padding-left: 42px; }
   .search button { padding: 12px 16px; }
   .key-btn #key-btn-label { display: none; }
-  .speed { grid-template-columns: 1fr; }
+  .speed-options { grid-auto-flow: row; }
   .bricks { gap: 22px 8px; }
   .badge { min-width: 76px; padding: 12px 16px 10px; border-radius: 16px; }
   .badge-form { font-size: 18px; }
