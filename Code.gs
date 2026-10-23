@@ -33,7 +33,7 @@ const AI_MODEL = 'claude-opus-5-5'; // used only by testAI() / runEvalSuite()
 const ALLOWED_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5',
   'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 const MAX_SAVE_BYTES = 60000;
-const PROMPT_VERSION = 4;
+const PROMPT_VERSION = 5;
 const MAX_ATTEMPTS = 2;             // 1 retry when the answer fails validation
 const DAILY_AI_LIMIT = 300;         // protects your API budget
 const DATA_JS_URL = 'https://raw.githubusercontent.com/ngoly2872005-png/KLTN/main/data.js';
@@ -85,19 +85,26 @@ function normalizeWord_(word) {
 }
 
 /**
- * Newest usable row for the word. AI rows made with an older prompt
- * version are skipped so they get re-analysed; verified rows always count.
+ * Newest usable row for the word. When a prompt version is given, AI rows
+ * made with another version are skipped (the browser then re-analyses the
+ * word); verified rows always count. The browser sends its own version, so
+ * a new prompt in ai.js needs no redeploy here.
  */
-function findWord_(key) {
+function findWord_(key, version) {
   const rows = getSheet_(WORDS_SHEET, WORDS_HEADER).getDataRange().getValues();
   for (let i = rows.length - 1; i >= 1; i--) {
     if (String(rows[i][0]).toLowerCase().trim() !== key) continue;
     let data;
     try { data = JSON.parse(rows[i][1]); } catch (err) { continue; }
-    if (rows[i][3] === 'ai' && data.promptVersion !== PROMPT_VERSION) continue;
+    if (version && rows[i][3] === 'ai' && data.promptVersion !== version) continue;
     return data;
   }
   return null;
+}
+
+function versionParam_(v) {
+  const n = parseInt(v, 10);
+  return n >= 1 && n <= 999 ? n : 0;
 }
 
 function saveWord_(key, data, source) {
@@ -108,12 +115,12 @@ function saveWord_(key, data, source) {
 /* Web app endpoints                                                   */
 /* ------------------------------------------------------------------ */
 
-/** GET ?action=lookup&word=xxx | ?action=ping */
+/** GET ?action=lookup&word=xxx&v=<prompt version> | ?action=ping */
 function doGet(e) {
   const p = (e && e.parameter) || {};
   try {
     if (p.action === 'lookup') {
-      return json_({ ok: true, data: findWord_(normalizeWord_(p.word)) });
+      return json_({ ok: true, data: findWord_(normalizeWord_(p.word), versionParam_(p.v) || PROMPT_VERSION) });
     }
     if (p.action === 'analyze') {
       // Removed: this public endpoint spent the owner's API credit.
@@ -167,9 +174,13 @@ function saveSharedAnalysis_(body) {
   }
   const problems = validateAnalysis_(ai, key);
   if (problems.length) return { ok: false, error: problems.join('; ') };
-  if (findWord_(key)) return { ok: true, skipped: 'already cached' };
+  const version = versionParam_(body.promptVersion) || PROMPT_VERSION;
+  // "replace" comes from the Re-analyse button: the new row wins because
+  // findWord_ returns the newest row.
+  if (!body.replace && findWord_(key, version)) return { ok: true, skipped: 'already cached' };
   const data = toAppFormat_(ai, key);
   data.model = body.model;
+  data.promptVersion = version;
   saveWord_(key, data, 'ai');
   return { ok: true };
 }
@@ -183,6 +194,12 @@ function saveSharedAnalysis_(body) {
 const SYSTEM_PROMPT = [
   'You are an expert English morphologist helping Vietnamese English-major students practise Immediate Constituent (IC) analysis.',
   'Analyse the word you are given and answer with JSON that follows the schema. Work through the decision procedure below before you answer.',
+  '',
+  '## 0. Think first — fill "notes" before anything else',
+  'In "notes" write 2 to 4 short sentences, in English, BEFORE you list any morpheme:',
+  '  (1) Is the word an irregular form of a verb or noun (past, past participle, plural)? If yes, say which base it comes from — that is the analysis (see section 2).',
+  '  (2) For every piece that looks like an affix, apply tests (a)–(c) of section 1, including meaning drift, and say whether you cut it and why.',
+  'The morphemes and the tree must follow what "notes" concluded.',
   '',
   '## 1. Segment: is each cut real in present-day English?',
   'Cut off a piece only if ALL three tests pass:',
@@ -237,8 +254,9 @@ function aiSchema_() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['word', 'isRealWord', 'suggestion', 'pos', 'ipa', 'gloss', 'process', 'morphemes', 'nodes', 'insights', 'family'],
+    required: ['notes', 'word', 'isRealWord', 'suggestion', 'pos', 'ipa', 'gloss', 'process', 'morphemes', 'nodes', 'insights', 'family'],
     properties: {
+      notes: { type: 'string' },
       word: { type: 'string' },
       isRealWord: { type: 'boolean' },
       suggestion: { type: 'string' },
@@ -447,6 +465,7 @@ function toAppFormat_(ai, word) {
 
   return {
     word: word,
+    notes: String(ai.notes || ''),
     isRealWord: ai.isRealWord,
     suggestion: ai.isRealWord ? '' : String(ai.suggestion || '').toLowerCase().trim(),
     pos: ai.pos,

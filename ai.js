@@ -11,7 +11,7 @@
  * Keep PROMPT_VERSION and the prompt text in sync in both files.
  */
 (function () {
-  const PROMPT_VERSION = 4;
+  const PROMPT_VERSION = 5;
   const PROVIDER_STORE = "ic-ai-provider";
   let lastModel = "";            // the model that actually answered the last call
   const EXPECTED_CHARS = 3200;   // typical answer length, for the progress bar
@@ -45,6 +45,12 @@
   const SYSTEM_PROMPT = [
     'You are an expert English morphologist helping Vietnamese English-major students practise Immediate Constituent (IC) analysis.',
     'Analyse the word you are given and answer with JSON that follows the schema. Work through the decision procedure below before you answer.',
+    '',
+    '## 0. Think first — fill "notes" before anything else',
+    'In "notes" write 2 to 4 short sentences, in English, BEFORE you list any morpheme:',
+    '  (1) Is the word an irregular form of a verb or noun (past, past participle, plural)? If yes, say which base it comes from — that is the analysis (see section 2).',
+    '  (2) For every piece that looks like an affix, apply tests (a)–(c) of section 1, including meaning drift, and say whether you cut it and why.',
+    'The morphemes and the tree must follow what "notes" concluded.',
     '',
     '## 1. Segment: is each cut real in present-day English?',
     'Cut off a piece only if ALL three tests pass:',
@@ -96,8 +102,9 @@
   const SCHEMA = {
     type: "object",
     additionalProperties: false,
-    required: ["word", "isRealWord", "suggestion", "pos", "ipa", "gloss", "process", "morphemes", "nodes", "insights", "family"],
+    required: ["notes", "word", "isRealWord", "suggestion", "pos", "ipa", "gloss", "process", "morphemes", "nodes", "insights", "family"],
     properties: {
+      notes: { type: "string" },   // reasoning first: models follow the rules better when they write it out
       word: { type: "string" },
       isRealWord: { type: "boolean" },
       suggestion: { type: "string" },
@@ -273,6 +280,8 @@
       if (k === "additionalProperties") continue;
       out[k] = k === "type" ? String(s[k]).toUpperCase() : toOpenApiSchema(s[k]);
     }
+    // This dialect may reorder keys; keep "notes" (the reasoning) first.
+    if (s.type === "object" && s.properties) out.propertyOrdering = Object.keys(s.properties);
     return out;
   }
 
@@ -570,6 +579,7 @@
     };
     return {
       word,
+      notes: String(ai.notes || ""),
       isRealWord: ai.isRealWord,
       suggestion: ai.isRealWord ? "" : String(ai.suggestion || "").toLowerCase().trim(),
       pos: ai.pos, ipa: ai.ipa, gloss: ai.gloss, process: ai.process,

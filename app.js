@@ -40,6 +40,7 @@
       infTitle: "Inflection", infText: "Grammatical form · same word class",
       famEmpty: "No word family available.",
       srcVerified: "✓ Verified", srcAi: "✦ AI analysis", srcSheet: "✓ Saved", srcLocal: "✓ Saved on this device",
+      reanalyze: "↻ Re-analyse",
       badWord: "Please type one English word (letters only).",
       nonce: "Not a dictionary word — analysed as a nonce word.",
       misspelled: "“{w}” is not an English word — the analysis below treats it as a made-up word. Did you mean:",
@@ -104,6 +105,7 @@
       infTitle: "Biến tố", infText: "Dạng ngữ pháp · không đổi từ loại",
       famEmpty: "Chưa có gia đình từ.",
       srcVerified: "✓ Đã kiểm duyệt", srcAi: "✦ AI phân tích", srcSheet: "✓ Đã lưu", srcLocal: "✓ Đã lưu trên máy",
+      reanalyze: "↻ Phân tích lại",
       badWord: "Vui lòng nhập một từ tiếng Anh (chỉ gồm chữ cái).",
       nonce: "Không phải từ có trong từ điển — được phân tích như từ giả.",
       misspelled: "“{w}” không phải từ tiếng Anh — phần phân tích bên dưới coi nó là từ giả. Có phải bạn muốn gõ:",
@@ -198,7 +200,7 @@
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), CONFIG.SHEET_TIMEOUT_MS);
     try {
-      const res = await fetch(`${CONFIG.GAS_URL}?action=lookup&word=${encodeURIComponent(word)}`, { signal: ctrl.signal });
+      const res = await fetch(`${CONFIG.GAS_URL}?action=lookup&word=${encodeURIComponent(word)}&v=${AI.PROMPT_VERSION}`, { signal: ctrl.signal });
       const json = JSON.parse(await res.text());
       const d = json.ok && json.data;
       // AI answers made with an older prompt are re-analysed with the current one.
@@ -227,23 +229,26 @@
   }
 
   // ---------- Lookup ----------
-  async function lookup(raw, onStatus) {
+  /** fresh: skip both caches and replace them (the Re-analyse button). */
+  async function lookup(raw, onStatus, fresh) {
     const word = raw.toLowerCase().trim();
     if (DB[word]) return { data: DB[word], source: "verified" };
     if (!/^[a-z][a-z'-]{0,29}$/.test(word)) throw Object.assign(new Error(t("badWord")), { code: "badWord" });
 
-    const local = cacheGet(word);
-    if (local) return { data: local, source: "local" };
+    if (!fresh) {
+      const local = cacheGet(word);
+      if (local) return { data: local, source: "local" };
 
-    onStatus({ phase: "cache", pct: 0 });
-    const shared = await sheetLookup(word);
-    if (shared) { cachePut(word, shared); return { data: shared, source: "sheet" }; }
+      onStatus({ phase: "cache", pct: 0 });
+      const shared = await sheetLookup(word);
+      if (shared) { cachePut(word, shared); return { data: shared, source: "sheet" }; }
+    }
 
     if (!AI.hasKey()) throw Object.assign(new Error(t("needKey")), { code: "needKey", word });
 
     const { data, raw: aiJson, model } = await AI.analyze(word, onStatus);
     cachePut(word, data);
-    postToSheet({ action: "save", word, ai: aiJson, model });
+    postToSheet({ action: "save", word, ai: aiJson, model, promptVersion: AI.PROMPT_VERSION, replace: !!fresh });
     return { data, source: "ai" };
   }
 
@@ -283,6 +288,7 @@
     const src = $("#w-source");
     src.className = "tag source " + (state.source === "ai" ? "ai" : "verified");
     src.textContent = t({ verified: "srcVerified", ai: "srcAi", sheet: "srcSheet", local: "srcLocal" }[state.source]);
+    $("#reanalyze").hidden = state.source === "verified";
     $("#w-count").textContent = w.morphemes.length;
     $("#w-bracket").textContent = bracket(w.tree, w);
   }
@@ -425,7 +431,8 @@
     const word = (raw || "").trim();
     if (!word) { $("#word-input").focus(); return; }
     const id = ++state.request;
-    const quick = !!DB[word.toLowerCase()] || !!cacheGet(word.toLowerCase());
+    const fresh = !!(opts && opts.fresh);
+    const quick = !fresh && (!!DB[word.toLowerCase()] || !!cacheGet(word.toLowerCase()));
     if (!quick) { startLoading(); $("#result").hidden = true; $("#notice").hidden = true; }
     // While the model is thinking no text arrives yet, so nudge the bar forward.
     let thinkTick = null;
@@ -439,7 +446,7 @@
           thinkTick = null;
         }
         setProgress(p);
-      });
+      }, fresh);
       if (id !== state.request) return;      // a newer search replaced this one
       state.word = data;
       state.source = source;
@@ -562,6 +569,7 @@
     });
 
     $("#key-btn").addEventListener("click", openKeyDialog);
+    $("#reanalyze").addEventListener("click", () => { if (state.word) show(state.word.word, { fresh: true }); });
     $("#key-form").addEventListener("submit", saveKeyDialog);
     $("#key-cancel").addEventListener("click", () => { state.pendingWord = null; $("#key-dialog").close(); });
     $("#key-clear").addEventListener("click", () => {
