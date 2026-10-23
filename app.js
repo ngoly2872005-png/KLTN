@@ -200,7 +200,10 @@
     try {
       const res = await fetch(`${CONFIG.GAS_URL}?action=lookup&word=${encodeURIComponent(word)}`, { signal: ctrl.signal });
       const json = JSON.parse(await res.text());
-      return json.ok && json.data ? json.data : null;
+      const d = json.ok && json.data;
+      // AI answers made with an older prompt are re-analysed with the current one.
+      if (!d || (d.source === "ai" && d.promptVersion !== AI.PROMPT_VERSION)) return null;
+      return d;
     } catch (e) {
       return null;   // timeout, HTML error page, offline → just ask the AI
     } finally {

@@ -33,7 +33,7 @@ const AI_MODEL = 'claude-opus-5-5'; // used only by testAI() / runEvalSuite()
 const ALLOWED_MODELS = ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5',
   'gemini-3.5-flash-lite', 'gemini-3.8-flash'];
 const MAX_SAVE_BYTES = 60000;
-const PROMPT_VERSION = 3;
+const PROMPT_VERSION = 4;
 const MAX_ATTEMPTS = 2;             // 1 retry when the answer fails validation
 const DAILY_AI_LIMIT = 300;         // protects your API budget
 const DATA_JS_URL = 'https://raw.githubusercontent.com/ngoly2872005-png/KLTN/main/data.js';
@@ -190,7 +190,8 @@ const SYSTEM_PROMPT = [
   '  (b) the piece adds its usual meaning or grammatical function;',
   '  (c) the whole word means roughly "base + affix meaning".',
   'Historical (etymological) structure is NOT enough: mention it in "etym", but do not cut it.',
-  'Pseudo-affix traps that must stay ONE free root: carpet (not car + pet), hammer (not ham + -er), regard (not re- + gard), report (not re- + port), wonder (not won + -der). A word only ends in -er/-ing or starts with re-/in-/un- by accident unless the tests pass.',
+  'Pseudo-affix traps that must stay ONE free root: carpet (not car + pet), hammer (not ham + -er), regard (not re- + gard), report (not re- + port), wonder (not won + -der). A word only ends in -er/-ing or starts with re-/in-/un-/dis- by accident unless the tests pass.',
+  'Meaning drift counts too: if the present-day meaning is no longer "base + affix meaning", keep ONE root even when the spelling still shows the old parts — business means "commerce", not "the state of being busy"; discuss, display and distance are not dis- + a base. Ask: would an ordinary speaker today paraphrase the word as base + affix? If not, do not cut; put the history in "etym".',
   'Lexicalised participial adjectives keep their base when the base is a living word: charming = charm + -ing, surprising = surprise + -ing. In these adjectives -ing / -ed are DERIVATIONAL (suffix-der), never inflectional.',
   '',
   '## 2. Spell out every morpheme',
@@ -198,6 +199,7 @@ const SYSTEM_PROMPT = [
   '- "surface" is exactly how the morpheme is spelled inside the word, without hyphens. Joining all surfaces in order MUST give the word with its hyphens removed.',
   '- Restore the base form after spelling changes, and add a "restoration" entry for each: consonant doubling (stopping: surface "stopp", form "stop"), silent e (hoping: surface "hop", form "hope"), y → i (ladies: surface "ladi", form "lady").',
   '- Internal change with no separate affix (mice, men, sang): the root keeps its base form with the changed spelling as surface (form "mouse", surface "mice"), followed by a ZERO morpheme with surface "" and form "{PLURAL}" or "{PAST}", type "suffix", cls "suffix-inf". Explain the vowel mutation in allomorphy and add a restoration entry (mice- → mouse).',
+  '- Irregular verb forms (taught, bought, went, sang, gone) are analysed as the inflected verb: base + zero {PAST} or {PAST PARTICIPLE} (taught = form "teach", surface "taught" + {PAST}). If the same spelling is also a noun, still give this verb analysis and mention the noun in derivInfl.',
   '- Hyphenated compounds (editor-in-chief): every word between hyphens is a free root; surfaces contain no hyphens.',
   '- allomorphOf: when a morpheme is a conditioned variant of another morpheme, name the basic form, otherwise "". The negative prefix in- has the assimilated allomorphs im- (before p, b, m), il- (before l) and ir- (before r): immature → "im-" with allomorphOf "in-", illegal → "il-" with allomorphOf "in-". Other examples: -ion vs -tion, a- vs an-.',
   '',
